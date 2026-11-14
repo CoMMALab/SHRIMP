@@ -15,15 +15,20 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake ninja-build git curl ca-certificates bzip2 \
         clang-18 llvm-18-dev libclang-18-dev libclang-cpp18-dev libeigen3-dev \
-        python3 python3-pip python3-venv python3-dev \
+        python3 python3-pip python3-venv python3-dev libgmp-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # CRAB's JIT looks up a binary named exactly `clang`.
 RUN ln -s /usr/bin/clang-18 /usr/local/bin/clang
 
-# --- CRAB ---
+# --- CRAB (CPU JIT + the GPU path, crusty_cuda). PyPI symforce is a fallback for the CPU path;
+#     setup.sh replaces it with the clone in required_dirs/symforce, which includes Caspar.
+#     torch + build deps are for the GPU path; nvcc comes from the base image. ---
 RUN python3 -m venv /opt/venvs/crab && \
-    /opt/venvs/crab/bin/pip install --no-cache-dir numpy symforce yourdfpy pytest
+    /opt/venvs/crab/bin/pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu130 && \
+    /opt/venvs/crab/bin/pip install --no-cache-dir numpy symforce yourdfpy pytest pybind11 \
+        sympy beautifulsoup4 \
+        "setuptools>=64" wheel setuptools_scm "cython>=3,<3.1.0"
 
 # --- cuRobo (torch from the CUDA 13 wheel index; curobo itself installed by setup.sh) ---
 RUN python3 -m venv /opt/venvs/curobo && \

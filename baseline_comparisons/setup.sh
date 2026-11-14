@@ -19,6 +19,18 @@ if [ -z "$(ls -A external/pyroffi/external/GRiM 2>/dev/null)" ]; then
 fi
 /opt/venvs/pyroffi/bin/pip install -e "external/pyroffi[cuda]"
 
+echo "== Caspar: build SymForce (with caspar) from the clone in required_dirs/symforce"
+# Caspar is part of CRAB (crusty_cuda), so it goes in the crab env, replacing the PyPI symforce
+# with the clone (a superset that includes caspar). --no-build-isolation builds with what's in
+# the venv, so the build deps must be installed first.
+# (cython is pinned by SymForce's setup.py: newer releases break symenginepy's wrapper.)
+/opt/venvs/crab/bin/pip install "setuptools>=64" wheel setuptools_scm "cython>=3,<3.1.0" numpy pybind11
+/opt/venvs/crab/bin/pip uninstall -y symforce
+/opt/venvs/crab/bin/pip install --no-build-isolation -e required_dirs/symforce
+
+echo "== crocket (pure Python, imported from external/crocket; needs these for GRiD's URDFParser)"
+/opt/venvs/crab/bin/pip install sympy beautifulsoup4
+
 echo "== cricket (build + python bindings, inside its conda env)"
 micromamba run -n cricket bash -c '
   set -e
@@ -29,7 +41,7 @@ micromamba run -n cricket bash -c '
 ' _ "$REPO"
 
 echo "Done. Activate an env with:"
-echo "  source /opt/venvs/crab/bin/activate      # CRAB"
+echo "  source /opt/venvs/crab/bin/activate      # CRAB (CPU JIT + GPU/Caspar)"
 echo "  source /opt/venvs/curobo/bin/activate    # cuRobo"
 echo "  source /opt/venvs/pyroffi/bin/activate   # pyroffi"
 echo "  micromamba activate cricket              # cricket"

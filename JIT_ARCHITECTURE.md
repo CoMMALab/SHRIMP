@@ -132,6 +132,25 @@ and returns both the value and Jacobian source/symbol names, for pasting into a
 hand-written template. Path A never needs this -- nothing exposes a raw Jacobian
 externally anymore; it's only ever consumed internally by a fused kernel's own loop.
 
+## Path C — GPU kernels via Caspar (`crab_codegen/caspar_kernel.py`, `crusty_cuda/`)
+
+The same `(robot, q, *extra_inputs) -> sf.Matrix` functions can also become CUDA kernels
+through SymForce's Caspar (`symforce.caspar`): one thread per configuration.
+
+- **Front end** (`crab_codegen.caspar_kernel.build_caspar_library`): wraps the symbolic function
+  in a Caspar kernel. `q` is read in chunks of at most 9 (SymForce's vector types stop at `V9`),
+  extra inputs are `ReadUnique` (shared by all threads), the output is chunked and written
+  per thread.
+- **Back end** (`crusty_cuda.build_cuda_function`): generates and compiles the library with
+  Caspar's CMake/nvcc build (cached under `~/.cache/crusty/cuda/`) and returns a `CudaFunction`.
+  `kernel(q_batch)` converts to Caspar's structure-of-arrays layout and back for convenience;
+  `to_caspar` / `run_caspar` / `from_caspar` expose the stages for GPU-resident pipelines.
+- **Precision:** GPU kernels are float32. Set `CRAB_PRECISION=float32` *before importing
+  `crab_model`* (it sets SymForce's process-global epsilon; see `crab_model/__init__.py`).
+  The CPU JIT path keeps the float64 default, so a process uses one or the other.
+- **Dependencies:** nvcc, cmake, torch with CUDA, and SymForce built from source with Caspar
+  (`required_dirs/symforce`). Not needed for the CPU path.
+
 ## The compiler layer (`crusty_compilations/`)
 
 The generic, robot-agnostic engine that takes a C++ source string and hands back

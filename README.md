@@ -34,10 +34,21 @@ python -m benchmarks.bench_kernels
 
 Front end (`crab_*`: robot description to C++ source):
 - `crab_model/`, `crab_io/`, `crab_kinematics/`: robot description, URDF loading, symbolic FK.
-- `crab_codegen/`: SymForce to C++ source, including the fused collision kernel.
+- `crab_codegen/`: SymForce to C++ source (including the fused collision kernel) and to Caspar CUDA kernels.
 
-Back end (`crusty_*`: C++ source to callable machine code):
-- `crusty_jit/`: JIT engine and Python binder.
+Back end (`crusty_*`: generated source to callable machine code):
+- `crusty_jit/`: CPU JIT engine and Python binder.
 - `crusty_compilations/`: Clang/ORC JIT (C++).
+- `crusty_cuda/`: GPU path: compiles and calls Caspar CUDA kernels (optional; needs nvcc, torch, SymForce with Caspar).
 
-- `robots/panda/`: spherized Panda URDF, SRDF, meshes (for visualization).
+- `robots/panda/`, `robots/rby1/`: spherized URDFs/SRDFs (Panda also has meshes for visualization).
+
+## GPU path (optional)
+
+Uses SymForce's Caspar, which lives in the SymForce repo (`required_dirs/symforce`, build it
+with `pip install --no-build-isolation -e required_dirs/symforce`). Set
+`CRAB_PRECISION=float32` before importing `crab_model`. Then:
+
+```
+python -m tests.test_caspar_correctness
+```

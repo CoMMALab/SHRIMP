@@ -1,3 +1,6 @@
+import os
+
+import numpy as np
 import symforce
 # Centralized here (rather than in whichever module happens to run first) since
 # crab_model.robot.Robot is a dependency of nearly every module in this codebase
@@ -6,6 +9,13 @@ import symforce
 # to run before anything does `import symforce.symbolic`, regardless of which of
 # those modules happens to be imported first by a given entry point.
 symforce.set_symbolic_api("symengine")
+
 # A numeric epsilon (not set_epsilon_to_symbol): a symbolic one would become an extra
 # input to every generated function and break the fixed `void** inputs` ABI.
-symforce.set_epsilon_to_number()
+# Process-global, like the API above: set CRAB_PRECISION=float32 *before importing crab_model*
+# for GPU (crusty_cuda) work, since float32 kernels need a float32-sized epsilon (as in
+# Caspar's own examples). The default (float64) is for the CPU JIT path.
+if os.environ.get("CRAB_PRECISION", "float64") == "float32":
+    symforce.set_epsilon_to_number(float(10 * np.finfo(np.float32).eps))
+else:
+    symforce.set_epsilon_to_number()

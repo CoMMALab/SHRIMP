@@ -20,6 +20,7 @@ shared CSV format, then compare outside.
 | | Regime | FK entry point | Robots (same Panda URDF where possible) |
 |---|---|---|---|
 | CRAB | CPU, single query | `build_simple_jit_function(robot, forward_kinematics_spheres)` | `robots/panda/panda_spherized.urdf` |
+| crocket | GPU, batched, float32 (thread and warp tiers) | `crocket.trace(robot, "frame_poses", frames=(link,))` via `fk_crocket.py`; URDFs parsed by GRiD's URDFParser from pyroffi's GRiM checkout | same shared URDF |
 | cricket | CPU, single query, float32 | generated `eefk` / `spherefk` in `fk_template.hh` | `external/cricket/resources/panda/panda_spherized.urdf` |
 | pyroffi | GPU, batched | `pk.Robot.from_urdf(...).forward_kinematics`; existing `external/pyroffi/tests/bench_fk.py` | `external/pyroffi/resources/{panda,fetch,baxter,g1}/` |
 | cuRobo | GPU, batched | `curobo.kinematics.Kinematics.compute_kinematics`; `external/curobo/curobo/examples/getting_started/forward_kinematics.py` | its own `franka.yml`, `unitree_g1_29dof.yml` |
@@ -31,6 +32,9 @@ shared CSV format, then compare outside.
   across regimes.
 - Python call overhead: CRAB's binder adds a few microseconds per call. Time the kernel in C++
   too, or the comparison with cricket is unfair.
+- crocket timing is its own protocol (CUDA events over back-to-back launches, no sync or launch
+  overhead), so it only compares fairly at large batch; at batch 1 it looks better than the
+  synchronized wall-clock the other scripts report.
 - Precision: cricket is float32, CRAB is float64. Cross-check outputs numerically before timing.
 - Same sphere set: cuRobo's `franka.yml` has its own spheres, so compare link/EE poses, not
   sphere FK, unless its spheres are replaced.
