@@ -1,6 +1,6 @@
 """Generates the extern "C" glue that adapts a raw SymForce-generated C++ function to
 the `void** inputs, void** outputs` calling convention -- the one and only ABI boundary
-between JIT'd C++ and Python in this codebase (see REDESIGN.md). Both authoring paths
+between JIT'd C++ and Python in this codebase. Both authoring paths
 use it: crab_jit.simple (Path A, one auto-generated function, any number of inputs)
 and hand-written fused kernels (Path B, e.g. crab_codegen/collision_kernel.py) alike.
 

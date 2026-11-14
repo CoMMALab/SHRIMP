@@ -7,7 +7,7 @@ loaded (they don't depend on q), so they're baked in as compile-time constants.
 
 Exported functions use the same `void** inputs, void** outputs` ABI as Path A
 (crab_jit.simple) -- see crab_jit.binder.JitFunction, the one binding mechanism used
-for both paths (REDESIGN.md). This is what let `FusedCollisionKernel` stop being a
+for both paths. This is what let `FusedCollisionKernel` stop being a
 bespoke ctypes.CFUNCTYPE class and become a thin wrapper over three generic
 JitFunctions instead.
 """

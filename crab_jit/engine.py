@@ -1,9 +1,5 @@
 """ctypes wrapper around crusty_compilations' libcrab_jit_capi.so (the LLVM ORC JIT
-+ Clang driver from crusty_compilations/src/jit). This generalizes
-crusty_compilations/examples/example_jit.py into a reusable engine: that example
-hardcoded a single demo source and also declared crab_jit_compile's ctypes argtypes
-with only 2 entries while calling it with 3 arguments (ctx, source, module_id), which
-raises a TypeError at the call site. Fixed here.
++ Clang driver from crusty_compilations/src/jit).
 
 crab::jit::CompileOptions defaults to `-O3` (see crusty_compilations/include/jit/compiler.hh),
 so every module compiled through this engine already gets full optimization; there is
@@ -23,7 +19,6 @@ def _default_lib_path() -> str:
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     candidates = [
         os.path.join(repo_root, "crusty_compilations", "build", "libcrab_jit_capi.so"),
-        os.path.join(repo_root, "build", "libcrab_jit_capi.so"),
     ]
     for path in candidates:
         if os.path.exists(path):

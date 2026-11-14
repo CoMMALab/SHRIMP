@@ -75,15 +75,9 @@ target_link_libraries(crusty_jit_lib PUBLIC
 )
 
 # --------------------------------------------------------------------
-# Example: C++ JIT Executable
-# --------------------------------------------------------------------
-add_executable(example_jit examples/example_jit.cpp)
-target_link_libraries(example_jit PRIVATE crusty_jit_lib)
-
-# --------------------------------------------------------------------
 # C-API shared library (for Python ctypes)
 # --------------------------------------------------------------------
-add_library(crab_jit_capi SHARED examples/crab_jit_capi.cc)
+add_library(crab_jit_capi SHARED src/crab_jit_capi.cc)
 target_link_libraries(crab_jit_capi PRIVATE crusty_jit_lib)
 target_compile_definitions(crab_jit_capi PRIVATE
     CRAB_EIGEN_INCLUDE_DIR="${EIGEN3_INCLUDE_DIR}"
@@ -92,7 +86,7 @@ target_compile_definitions(crab_jit_capi PRIVATE
 # --------------------------------------------------------------------
 # Installation
 # --------------------------------------------------------------------
-install(TARGETS crusty_jit_lib example_jit crab_jit_capi
+install(TARGETS crusty_jit_lib crab_jit_capi
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin

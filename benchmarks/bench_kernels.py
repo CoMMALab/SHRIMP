@@ -1,5 +1,5 @@
 """Speed harness: wall-clock time per call for JIT'd kernels vs. a plain Python
-reference. Exists to put real numbers behind claims JIT_ARCHITECTURE.md/REDESIGN.md
+reference. Exists to put real numbers behind claims JIT_ARCHITECTURE.md
 make about JIT and fusion being worthwhile, instead of only arguing it from first
 principles.
 
@@ -29,7 +29,7 @@ def bench_simple_vs_python(robot) -> None:
         # Naive baseline: crusty_kinematics.fk.forward_kinematics doing its normal
         # SymForce-object-based computation, with none of the JIT'd kernel's fusion
         # or native-code speed.
-        primitive_xyzr, _, _ = forward_kinematics(robot, q)
+        primitive_xyzr, _ = forward_kinematics(robot, q)
         return np.array(primitive_xyzr, dtype=np.float64).flatten()
 
     python_us = time_call(python_reference, q, n_calls=200)  # this path is slow; fewer samples
@@ -62,7 +62,7 @@ def bench_task_space_distance(robot) -> None:
     def python_reference(q, goal_pose):
         dist = task_space_distance(robot, q, goal_pose)
         return np.array(dist, dtype=np.float64).flatten()
-        # primitive_xyzr, _, link_poses = forward_kinematics(robot, q)
+        # primitive_xyzr, link_poses = forward_kinematics(robot, q)
         # ee_pose = link_poses[robot.link_name_to_index[robot.end_effectors[0]]]
         # goal_pose_obj = sf.Pose3.from_storage(list(goal_pose))
         # rel = goal_pose_obj.inverse() * ee_pose

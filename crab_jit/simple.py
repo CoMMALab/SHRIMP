@@ -1,7 +1,7 @@
 """Path A: the generic path for one-off `(q, *extra_inputs) -> flat vector` symbolic
 functions. Codegen, extern "C" wrapping, JIT compiling, and binding in a single call,
 instead of hand-writing a new template/builder/export for every new function (see
-REDESIGN.md and JIT_ARCHITECTURE.md's "Simplifying the 'new function' workflow").
+JIT_ARCHITECTURE.md).
 
 Not used for the fused collision kernel (Path B, crab_codegen.collision_kernel) --
 that has a genuinely bespoke shape (hand-fused control flow across multiple generated

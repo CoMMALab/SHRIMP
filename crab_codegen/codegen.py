@@ -118,10 +118,9 @@ def build_and_generate_function_with_jacobian(robot: Robot, symbolic_fn, name: s
                                                extra_inputs: list[tuple[str, int]] | None = None) -> dict:
     """Path-B counterpart to build_and_generate_function: also generates the Jacobian
     of symbolic_fn's output w.r.t. q (only ever w.r.t. q -- extra_inputs, if any, are
-    passed through as additional non-differentiated arguments, e.g. a goal pose for an
-    IK residual), for embedding both the value and its Jacobian into one hand-written
-    fused kernel translation unit (see crab_codegen.collision_kernel,
-    crab_codegen.ik_fused). Path A never needs a Jacobian -- nothing exposes a raw
+    passed through as additional non-differentiated arguments, e.g. a goal pose), for
+    embedding both the value and its Jacobian into one hand-written fused kernel
+    translation unit (see crab_codegen.collision_kernel). Path A never needs a Jacobian -- nothing exposes a raw
     Jacobian externally anymore, it's only ever consumed internally by a fused
     kernel's own control flow.
     """

@@ -1,4 +1,4 @@
-"""End-to-end examples for CRAB's JIT backend (see REDESIGN.md for the two-path design).
+"""End-to-end examples for CRAB's JIT backend.
 
 fused_demo() is Path B: FK + the collision loop + cost/gradient are all JIT-compiled
 into one -O3 translation unit per robot (crab_codegen.collision_kernel), so there's no

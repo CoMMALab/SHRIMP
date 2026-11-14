@@ -1,7 +1,7 @@
 """The one Python<->native binding mechanism in this codebase: every JIT'd C++
 function -- whether auto-generated (Path A, crab_jit.simple) or hand-written/fused
 (Path B, e.g. crab_codegen.collision_kernel) -- exports `void fn(void** inputs, void**
-outputs)` and gets bound through JitFunction, the same way. See REDESIGN.md.
+outputs)` and gets bound through JitFunction, the same way.
 
 Python-side inputs may be a list, tuple, numpy array, or a bare scalar; each is
 flattened into its own flat double buffer and boxed into the `inputs` void* array

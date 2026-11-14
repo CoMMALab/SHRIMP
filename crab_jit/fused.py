@@ -2,7 +2,7 @@
 loop + cost/gradient, all inlined into one -O3 compile -- see
 crab_codegen.collision_kernel). FusedCollisionKernel is a thin, purely-for-ergonomics
 wrapper over three crab_jit.binder.JitFunctions -- there's no bespoke ctypes signature
-code here; binding is identical to Path A's (see REDESIGN.md).
+code here; binding is identical to Path A's.
 """
 
 from typing import Optional, Tuple

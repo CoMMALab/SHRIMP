@@ -1,8 +1,6 @@
 # How CRAB's JIT backend fits together
 
-Reflects the post-redesign architecture (see `REDESIGN.md` for the plan and rationale
-behind this shape, and the delete list of everything this replaced). No prior
-JIT/LLVM knowledge assumed.
+No prior JIT/LLVM knowledge assumed.
 
 ## The problem we're solving
 
@@ -134,7 +132,7 @@ and returns both the value and Jacobian source/symbol names, for pasting into a
 hand-written template. Path A never needs this -- nothing exposes a raw Jacobian
 externally anymore; it's only ever consumed internally by a fused kernel's own loop.
 
-## The compiler layer (`crusty_compilations/`) — unchanged by this redesign
+## The compiler layer (`crusty_compilations/`)
 
 The generic, robot-agnostic engine that takes a C++ source string and hands back
 callable machine code:
@@ -145,26 +143,21 @@ callable machine code:
 - `crab::jit::DiskObjectCache` (`object_cache.hh`/`.cc`) -- caches compiled objects on
   disk (`~/.cache/crab/`), keyed by a hash of source + compiler flags (so editing a
   kernel's source always busts the cache -- see `crab_jit_capi.cc`).
-- `examples/crab_jit_capi.cc` -- the plain C API (`crab_jit_create/compile/lookup/destroy`)
+- `src/crab_jit_capi.cc` -- the plain C API (`crab_jit_create/compile/lookup/destroy`)
   exposed as `libcrab_jit_capi.so`, called from Python via `ctypes`
   (`crab_jit/engine.py`'s `CrabJitEngine`). Also passes `-isystem <Eigen include dir>`
   (`CRAB_EIGEN_INCLUDE_DIR`, baked in at CMake time) since the Clang driver invocation
   here has no notion of this process's own build flags otherwise.
 
-## One build, not two
+## Build
 
-Before this redesign there were two independent CMake projects: the root
-`CMakeLists.txt` building a nanobind extension (`crab_backend`), and
-`crusty_compilations/CMakeLists.txt` building the JIT. `crab_backend` and everything
-that only existed to feed it (`src/`, `crab_jit/build.py`, `crab_codegen/robot_spherized.py`,
-...) are gone -- see `REDESIGN.md`'s delete list. `crusty_compilations/build/` is now
-the only build directory in the repo:
+`crusty_compilations/build/` is the only build directory:
 ```
 cmake -S crusty_compilations -B crusty_compilations/build
 cmake --build crusty_compilations/build --target crab_jit_capi
 ```
 
-## Walkthrough: `fused_demo()`
+## Walkthrough: `fused_demo()` (`examples/demo.py`)
 
 1. `crab_codegen.fixtures.load_panda_robot()` loads the URDF into a `Robot`.
 2. `crab_codegen.collision_kernel.build_fused_kernel_source(robot)` generates FK +
