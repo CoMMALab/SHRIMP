@@ -5,15 +5,15 @@
  "device": "gpu",
  "precision": "float32",
  "link": "left_arm/tool",
- "latency_us_batch1": 145.34899673890322,
+ "latency_us_batch1": 146.46650379290804,
  "per_config_us_by_batch": {
-  "1": 136.3639801274985,
-  "16": 8.500701260345522,
-  "256": 0.5369151563172636,
-  "4096": 0.0337755859192157,
-  "65536": 0.0040391058364619425,
-  "262144": 0.005234426727618313,
-  "1048576": 0.005195565891402687
+  "1": 6.324849999999969,
+  "16": 0.4034999999999975,
+  "256": 0.07279374999999991,
+  "4096": 0.012921057128906278,
+  "65536": 0.0039976951599121095,
+  "262144": 0.005297475433349611,
+  "1048576": 0.005196807146072387
  },
  "accuracy_poses": [
   [
@@ -4561,7 +4561,7 @@
    0.0
   ]
  ],
- "build_seconds": 3.25157415799913,
- "note": "crusty_cuda launches, caspar layout, amortized; --use_fast_math build",
+ "build_seconds": 3.1821525230043335,
+ "note": "generated kernel's GPU time from the torch profiler (excludes Python/pybind launch overhead; wall b=1 includes it); symbolic Jacobian; --use_fast_math build",
  "task": "jac"
 }

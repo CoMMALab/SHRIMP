@@ -45,3 +45,31 @@ def q_to_ee_position_jacobian(robot: Robot, q) -> sf.Matrix:
     ee_pose = q_to_eeposes(robot, q, [robot.end_effectors[0]])[0]
     jac = sf.Matrix(ee_pose.t).jacobian(sf.Matrix(q))
     return sf.Matrix(jac.to_flat_list())
+
+
+def q_to_ee_position_jacobian_analytic(robot: Robot, q) -> sf.Matrix:
+    """Same quantity as q_to_ee_position_jacobian, but the geometric formula instead of symbolic
+    differentiation: for each joint on the chain to the end effector, a revolute column is
+    (world axis) x (p_ee - joint origin) and a prismatic column is the world axis. The axis and
+    origin come from the joint's frame before its own rotation (parent pose * joint.origin), so
+    column j doesn't depend on q_j and reuses FK's intermediate terms (O(joints) work)."""
+    _, link_poses = forward_kinematics(robot, q)
+    ee = robot.end_effectors[0]
+    p = link_poses[robot.link_name_to_index[ee]].t
+
+    columns = [sf.V3.zero() for _ in range(robot.nq)]
+    link = robot.links[ee]
+    while link.parent_joint is not None:
+        joint = robot.joints[link.parent_joint]
+        if joint.is_actuated:
+            pre = link_poses[robot.link_name_to_index[joint.parent]] * joint.origin
+            axis = pre.R * joint.axis
+            if joint.type == "revolute":
+                columns[joint.id] = axis.cross(p - pre.t)
+            elif joint.type == "prismatic":
+                columns[joint.id] = axis
+            else:
+                raise ValueError(f"Unsupported joint type: {joint.type}")
+        link = robot.links[joint.parent]
+
+    return sf.Matrix([columns[j][i] for i in range(3) for j in range(robot.nq)])  # row-major 3 x nq

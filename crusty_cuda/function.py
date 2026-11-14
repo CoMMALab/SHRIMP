@@ -19,6 +19,7 @@ def _as_cuda(x, cols: int) -> torch.Tensor:
 class CudaFunction:
     def __init__(self, lib, spec: dict):
         self._lib = lib
+        self.name = spec["name"]
         self._kernel = getattr(lib, spec["name"])
         self.nq = spec["nq"]
         self.n_out = spec["n_out"]

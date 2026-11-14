@@ -1,6 +1,7 @@
-"""CRAB CPU JIT: end-effector position Jacobian (3 x nq) via symbolic differentiation.
-Run in the crab env: python baseline_comparisons/jac_crab.py [--robot panda|rby1]
-Build time (symbolic Jacobian + codegen + clang -O3) is the scaling number to watch."""
+"""CRAB CPU JIT: end-effector position Jacobian (3 x nq).
+Run in the crab env: python baseline_comparisons/jac_crab.py [--robot panda|rby1] [--method symbolic|analytic]
+symbolic: symbolic differentiation of FK. analytic: the geometric formula (saved as crab_analytic).
+Build time (derivation + codegen + clang -O3) is the scaling number to watch."""
 
 import sys
 import time
@@ -12,12 +13,15 @@ sys.path.insert(0, str(common.REPO))
 
 import crab_model  # noqa: F401 -- must precede any symforce.symbolic import
 from crab_io.urdf import load_urdf, urdf_to_robot
-from crab_kinematics.derived import q_to_ee_position_jacobian
+from crab_kinematics.derived import q_to_ee_position_jacobian, q_to_ee_position_jacobian_analytic
 from crusty_jit import build_simple_jit_function
 
 
 def main() -> None:
-    spec = common.parse_robot()
+    args = common.parse_args()
+    spec = args.spec
+    fn, suffix = ((q_to_ee_position_jacobian_analytic, "_analytic") if args.method == "analytic"
+                  else (q_to_ee_position_jacobian, ""))
     robot = urdf_to_robot(load_urdf(str(spec.urdf_path)), [spec.link]).finalize()
     assert robot.nq == spec.dof, (robot.nq, spec.dof)
     q_index = [robot.joints[n].id for n in spec.joints]
@@ -28,9 +32,9 @@ def main() -> None:
         return out
 
     t0 = time.perf_counter()
-    kernel = build_simple_jit_function(robot, q_to_ee_position_jacobian, name=f"ee_jac_{spec.name}")
+    kernel = build_simple_jit_function(robot, fn, name=f"ee_jac_{spec.name}{suffix}")
     build_seconds = time.perf_counter() - t0
-    print(f"crab jacobian build {build_seconds:.1f}s")
+    print(f"crab jacobian ({args.method}) build {build_seconds:.1f}s")
 
     q = to_robot_q(np.zeros(spec.dof))
     latency = common.median_us(lambda: kernel(q), n_calls=10_000)
@@ -40,8 +44,8 @@ def main() -> None:
         jac = np.asarray(kernel(to_robot_q(cfg))).reshape(1, 3, robot.nq)
         rows.append(common.jac_to_spec_order(jac, q_index)[0])
 
-    common.save(spec, "crab", "cpu", "float64", latency, {1: latency}, [r.tolist() for r in rows],
-                note="includes Python binder overhead; symbolic Jacobian of the position",
+    common.save(spec, f"crab{suffix}", "cpu", "float64", latency, {1: latency}, [r.tolist() for r in rows],
+                note=f"includes Python binder overhead; {args.method} position Jacobian",
                 build_seconds=build_seconds, task="jac")
 
 

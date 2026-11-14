@@ -23,7 +23,7 @@ import torch
 
 from crab_io.urdf import load_urdf, urdf_to_robot
 from crab_kinematics.derived import q_to_ee_pose
-from crusty_cuda import build_cuda_function
+from crusty_cuda import build_cuda_function, kernel_time_us
 
 
 def main() -> None:
@@ -47,8 +47,7 @@ def main() -> None:
     for b in common.BATCH_SIZES:
         q_cas = kernel.to_caspar(to_robot_q(common.sample_configs(spec, b, seed=b)))
         out = kernel.run_caspar(q_cas, [], b)
-        per_config[b] = common.amortized_us(
-            lambda: kernel.run_caspar(q_cas, [], b, out=out), lambda _: torch.cuda.synchronize()) / b
+        per_config[b] = kernel_time_us(lambda: kernel.run_caspar(q_cas, [], b, out=out), kernel.name) / b
         if b == 1:
             def call():
                 kernel.run_caspar(q_cas, [], 1, out=out)
@@ -59,9 +58,9 @@ def main() -> None:
     poses = [common.to_pose_row(o[4:7], [o[3], o[0], o[1], o[2]]) for o in res]
 
     common.save(spec, "caspar", "gpu", "float32", wall_batch1, per_config, poses,
-                note="crusty_cuda kernel launches (data pre-converted to caspar layout); amortized "
-                     "over back-to-back launches; build_seconds = trace + codegen + nvcc "
-                     "(delete ~/.cache/crusty/cuda for a cold build)",
+                note="generated kernel's GPU time from the torch profiler (excludes Python/pybind "
+                     "launch overhead; wall b=1 includes it); data pre-converted to caspar layout; "
+                     "build_seconds = trace + codegen + nvcc (delete ~/.cache/crusty/cuda for cold)",
                 build_seconds=build_seconds)
 
 

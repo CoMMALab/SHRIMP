@@ -89,6 +89,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--robot", choices=sorted(ROBOTS), default="panda")
     parser.add_argument("--task", choices=("fk", "jac"), default="fk")  # compare.py only
+    # jac_crab.py / jac_caspar.py: how CRAB's Jacobian is derived (results saved as <lib>_analytic)
+    parser.add_argument("--method", choices=("symbolic", "analytic"), default="symbolic")
     args = parser.parse_args()
     args.spec = ROBOTS[args.robot]
     return args
