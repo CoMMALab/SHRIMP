@@ -1,5 +1,5 @@
 """crocket (CUDA trace compiler) FK of one link. Thread and warp tiers.
-Run in the crab env (needs nvcc, numpy, sympy, beautifulsoup4):
+Run in the crocket env (needs nvcc, numpy, sympy, beautifulsoup4):
     python baseline_comparisons/fk_crocket.py [--robot panda|rby1]
 
 crocket parses URDFs with GRiD's URDFParser; pyroffi's GRiM checkout contains one.

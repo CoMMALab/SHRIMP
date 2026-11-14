@@ -28,8 +28,8 @@ echo "== Caspar: build SymForce (with caspar) from the clone in required_dirs/sy
 /opt/venvs/crab/bin/pip uninstall -y symforce
 /opt/venvs/crab/bin/pip install --no-build-isolation -e required_dirs/symforce
 
-echo "== crocket (pure Python, imported from external/crocket; needs these for GRiD's URDFParser)"
-/opt/venvs/crab/bin/pip install sympy beautifulsoup4
+echo "== crocket (pure Python, imported from external/crocket; deps are for GRiD's URDFParser)"
+/opt/venvs/crocket/bin/pip install numpy sympy beautifulsoup4 lxml
 
 echo "== cricket (build + python bindings, inside its conda env)"
 micromamba run -n cricket bash -c '
@@ -44,4 +44,5 @@ echo "Done. Activate an env with:"
 echo "  source /opt/venvs/crab/bin/activate      # CRAB (CPU JIT + GPU/Caspar)"
 echo "  source /opt/venvs/curobo/bin/activate    # cuRobo"
 echo "  source /opt/venvs/pyroffi/bin/activate   # pyroffi"
+echo "  source /opt/venvs/crocket/bin/activate   # crocket"
 echo "  micromamba activate cricket              # cricket"

@@ -27,7 +27,6 @@ RUN ln -s /usr/bin/clang-18 /usr/local/bin/clang
 RUN python3 -m venv /opt/venvs/crab && \
     /opt/venvs/crab/bin/pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu130 && \
     /opt/venvs/crab/bin/pip install --no-cache-dir numpy symforce yourdfpy pytest pybind11 \
-        sympy beautifulsoup4 \
         "setuptools>=64" wheel setuptools_scm "cython>=3,<3.1.0"
 
 # --- cuRobo (torch from the CUDA 13 wheel index; curobo itself installed by setup.sh) ---
@@ -40,6 +39,11 @@ RUN python3 -m venv /opt/venvs/curobo && \
 RUN python3 -m venv /opt/venvs/pyroffi && \
     /opt/venvs/pyroffi/bin/pip install --no-cache-dir \
         "jax[cuda13]==0.10.2" jaxlib==0.10.2 pynvml pytest
+
+# --- crocket (pure Python, imported from external/crocket; sympy + beautifulsoup4 are for
+#     GRiD's URDFParser; it compiles with the base image's nvcc) ---
+RUN python3 -m venv /opt/venvs/crocket && \
+    /opt/venvs/crocket/bin/pip install --no-cache-dir numpy sympy beautifulsoup4 lxml pytest
 
 # --- cricket (conda-forge deps from external/cricket/environment.yaml) ---
 RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xj -C /usr/local bin/micromamba
