@@ -21,8 +21,8 @@ def forward_kinematics(robot: Robot, q: sf.Vector7):
         elif joint.type == "prismatic":
             joint_transform = sf.Pose3(R=sf.Rot3(), t=joint.axis * q[joint.id])
         elif joint.type == "fixed":
-            # get the joint transform and apply it
-            joint_transform = joint.origin
+            # joint.origin is applied once below; a fixed joint adds nothing on top of it
+            joint_transform = sf.Pose3()
         else:
             raise ValueError(f"Unsupported joint type: {joint.type}")
 

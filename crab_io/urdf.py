@@ -34,13 +34,23 @@ def urdf_to_robot(urdf: yourdfpy.URDF, end_effectors: List[str] = None) -> Robot
         # (TODO) -- extract out the collision spheres from the urdf here and add them to the link
         # robot.links[link.name] = Link(name=link.name, id=i)
 
-    for i, (joint_name, joint) in enumerate(urdf.joint_map.items()):
+    # Joint.id is the index into q (actuated joints, in URDF order); fixed joints get -1.
+    # It must not count fixed joints, or q[joint.id] in fk misindexes any robot where a
+    # fixed joint precedes an actuated one.
+    q_index = 0
+    for joint_name, joint in urdf.joint_map.items():
         parent_name = robot.links[joint.parent].name
         child_name = robot.links[joint.child].name
 
+        if joint.type != "fixed":
+            joint_id = q_index
+            q_index += 1
+        else:
+            joint_id = -1
+
         robot.joints[joint.name] = Joint(
             name=joint.name,
-            id=i,
+            id=joint_id,
             parent=parent_name,
             child=child_name,
             origin= sf.Pose3(R = sf.Rot3.from_rotation_matrix(joint.origin[:3, :3]), t = sf.V3(joint.origin[:3, 3])),

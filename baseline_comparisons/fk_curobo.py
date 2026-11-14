@@ -1,4 +1,5 @@
-"""cuRobo FK of panda_hand. Run in the curobo env: python baseline_comparisons/fk_curobo.py"""
+"""cuRobo FK. Run in the curobo env: python baseline_comparisons/fk_curobo.py [--robot panda|rby1]
+Loads the shared URDF directly (KinematicsCfg.from_basic_urdf: FK only, no collision)."""
 
 import numpy as np
 import torch
@@ -9,19 +10,20 @@ from curobo.types import JointState
 
 
 def main() -> None:
-    kin = Kinematics(KinematicsCfg.from_robot_yaml_file("franka.yml"))
-    assert kin.get_dof() == 7, kin.get_dof()
+    spec = common.parse_robot()
+    frames = [spec.link, *spec.extra_frames]  # cuRobo drops joints not on a requested frame's path
+    kin = Kinematics(KinematicsCfg.from_basic_urdf(str(spec.urdf_path), spec.base_link, frames))
+    names = list(kin.joint_names)
     dev = "cuda"
+    print(f"curobo dof={kin.get_dof()} joints={len(names)}")
 
-    def run(q: torch.Tensor):
-        js = JointState.from_position(q, joint_names=kin.joint_names)
-        return kin.compute_kinematics(js)
+    def make_js(q7: np.ndarray) -> JointState:
+        full = common.embed(spec, q7, names)
+        q = torch.tensor(full, dtype=torch.float32, device=dev)
+        return JointState.from_position(q, joint_names=names)
 
     def timed(batch: int, n_calls: int) -> float:
-        lo = torch.tensor(common.PANDA_LO, dtype=torch.float32, device=dev)
-        hi = torch.tensor(common.PANDA_HI, dtype=torch.float32, device=dev)
-        q = lo + (hi - lo) * torch.rand(batch, 7, device=dev, dtype=torch.float32)
-        js = JointState.from_position(q, joint_names=kin.joint_names)  # built outside the timer
+        js = make_js(common.sample_configs(spec, batch, seed=batch))  # built outside the timer
 
         def call():
             kin.compute_kinematics(js)
@@ -34,14 +36,15 @@ def main() -> None:
         per_config[b] = timed(b, n_calls=200 if b <= 4096 else 50) / b
     latency = per_config[1]
 
-    q_acc = torch.tensor(common.accuracy_configs(), dtype=torch.float32, device=dev)
-    pose = run(q_acc).tool_poses.get_link_pose(common.LINK)
+    state = kin.compute_kinematics(make_js(common.accuracy_configs(spec)))
+    pose = state.tool_poses.get_link_pose(spec.link)
     pos = pose.position.detach().cpu().numpy().reshape(-1, 3)
     quat = pose.quaternion.detach().cpu().numpy().reshape(-1, 4)  # wxyz
     poses = [common.to_pose_row(p, qt) for p, qt in zip(pos, quat)]
 
-    common.save("curobo", "gpu", "float32", latency, per_config, poses,
-                note="compute_kinematics only (JointState built outside timer); synchronized per call")
+    common.save(spec, "curobo", "gpu", "float32", latency, per_config, poses,
+                note=f"compute_kinematics only (JointState built outside timer); synchronized per call; "
+                     f"computes {len(frames)} tool frame(s): {frames}")
 
 
 if __name__ == "__main__":

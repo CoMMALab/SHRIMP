@@ -1,5 +1,6 @@
-"""pyroffi FK of panda_hand, JAX and CUDA backends.
-Run in the pyroffi env: python baseline_comparisons/fk_pyroffi.py"""
+"""pyroffi FK, JAX and CUDA backends.
+Run in the pyroffi env: python baseline_comparisons/fk_pyroffi.py [--robot panda|rby1]
+GPU:  python ...    CPU baseline (JAX on CPU):  JAX_PLATFORMS=cpu python ..."""
 
 import os
 
@@ -12,46 +13,44 @@ import yourdfpy
 import common
 
 
-def bench_backend(name: str, robot, use_cuda: bool, arm_idx: list[int], n_act: int, device: str) -> None:
+def bench_backend(spec, name: str, robot, use_cuda: bool, device: str) -> None:
     fk = jax.jit(lambda cfg: robot.forward_kinematics(cfg, use_cuda=use_cuda))
-    link_idx = robot.links.names.index(common.LINK)
+    link_idx = robot.links.names.index(spec.link)
+    names = list(robot.joints.actuated_names)  # fingers etc. not in spec.joints stay 0
 
-    def pad(q7: np.ndarray) -> jnp.ndarray:
-        full = np.zeros((q7.shape[0], n_act), dtype=np.float32)  # fingers stay at 0
-        full[:, arm_idx] = q7
-        return jnp.asarray(full)
+    def pad(q: np.ndarray) -> jnp.ndarray:
+        return jnp.asarray(common.embed(spec, q, names), dtype=jnp.float32)
 
     per_config = {}
     for b in common.BATCH_SIZES:
-        cfg = pad(common.sample_configs(b, seed=b))
+        cfg = pad(common.sample_configs(spec, b, seed=b))
         call = lambda: jax.block_until_ready(fk(cfg))
         per_config[b] = common.median_us(call, n_calls=200 if b <= 4096 else 50) / b
     latency = per_config[1]
 
-    out = np.asarray(fk(pad(common.accuracy_configs())))[:, link_idx]  # (N, 7) wxyz_xyz
+    out = np.asarray(fk(pad(common.accuracy_configs(spec))))[:, link_idx]  # (N, 7) wxyz_xyz
     poses = [common.to_pose_row(o[4:7], o[0:4]) for o in out]
 
-    common.save(name, device, "float32", latency, per_config, poses,
+    common.save(spec, name, device, "float32", latency, per_config, poses,
                 note=f"jax.jit + block_until_ready per call, use_cuda={use_cuda}")
 
 
 def main() -> None:
+    spec = common.parse_robot()
     on_gpu = jax.default_backend() == "gpu"
     if not on_gpu and os.environ.get("JAX_PLATFORMS") != "cpu":
         raise SystemExit(f"JAX is on '{jax.default_backend()}', not GPU, and CPU wasn't requested; refusing to "
                          "record misleading numbers. Run with JAX_PLATFORMS=cuda to see the real plugin error, "
                          "or JAX_PLATFORMS=cpu for a deliberate CPU baseline.")
     device = "gpu" if on_gpu else "cpu"
-    urdf =yourdfpy.URDF.load(str(common.REPO / "external/pyroffi/resources/panda/panda_spherized.urdf"))
-    robot = pk.Robot.from_urdf(urdf)
-    names = list(robot.joints.actuated_names)
-    arm_idx = [names.index(f"panda_joint{i}") for i in range(1, 8)]
-    n_act = robot.joints.num_actuated_joints
 
-    bench_backend(f"pyroffi_jax_{device}", robot, False, arm_idx, n_act, device)
+    robot = pk.Robot.from_urdf(yourdfpy.URDF.load(str(spec.urdf_path)))
+    print(f"pyroffi actuated={robot.joints.num_actuated_joints} floating_base={robot.floating_base}")
+
+    bench_backend(spec, f"pyroffi_jax_{device}", robot, False, device)
     if on_gpu:  # the CUDA FFI kernel needs a GPU
         try:
-            bench_backend("pyroffi_cuda", robot, True, arm_idx, n_act, device)
+            bench_backend(spec, "pyroffi_cuda", robot, True, device)
         except Exception as e:  # GRiM/nvcc not available
             print(f"[pyroffi_cuda] skipped: {type(e).__name__}: {e}")
 
