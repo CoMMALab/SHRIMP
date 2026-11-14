@@ -6,11 +6,12 @@ Compare CRAB against cuRobo, pyroffi and cricket (cloned under `external/`, giti
 
 ```
 docker build -f baseline_comparisons/Dockerfile -t crab-baselines .
-docker run --rm -it --gpus all -v "$PWD":/workspace crab-baselines
-bash baseline_comparisons/setup.sh
+docker run --rm -it --gpus all -v <your mounts> crab-baselines
+bash <repo>/baseline_comparisons/setup.sh
 ```
 
-Requires the NVIDIA container toolkit on the host. Each library has its own env (see the
+The repo can be mounted anywhere; `setup.sh` locates it from its own path. Requires the
+NVIDIA container toolkit on the host. Each library has its own env (see the
 Dockerfile header); run each library's benchmark in its own env and write results to a
 shared CSV format, then compare outside.
 
