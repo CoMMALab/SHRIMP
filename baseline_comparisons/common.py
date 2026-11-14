@@ -19,7 +19,8 @@ HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent
 RESULTS = HERE / "results"
 
-BATCH_SIZES = [1, 16, 256, 4096, 65536]
+BATCH_SIZES = [1, 16, 256, 4096, 65536, 262144, 1048576]
+CPU_MAX_BATCH = 4096  # slow CPU baselines stop here
 N_ACCURACY = 64
 
 
@@ -84,10 +85,23 @@ ROBOTS = {
 }
 
 
-def parse_robot() -> RobotSpec:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--robot", choices=sorted(ROBOTS), default="panda")
-    return ROBOTS[parser.parse_args().robot]
+    parser.add_argument("--task", choices=("fk", "jac"), default="fk")  # compare.py only
+    args = parser.parse_args()
+    args.spec = ROBOTS[args.robot]
+    return args
+
+
+def parse_robot() -> RobotSpec:
+    return parse_args().spec
+
+
+def jac_to_spec_order(jac: np.ndarray, column_of: list) -> np.ndarray:
+    """jac: (N, 3, n_cols) -> (N, 3 * dof) row-major with columns in spec.joints order;
+    column_of[k] is the library's column for spec.joints[k]."""
+    return jac[:, :, column_of].reshape(jac.shape[0], -1)
 
 
 def sample_configs(spec: RobotSpec, n: int, seed: int) -> np.ndarray:
@@ -128,9 +142,30 @@ def median_us(fn, n_calls: int, n_warmup: int = 20) -> float:
     return float(np.median(samples)) * 1e6
 
 
+def amortized_us(fn, sync, n_inner: int = 50, n_runs: int = 9, n_warmup: int = 3) -> float:
+    """Per-call microseconds with launch/sync overhead amortized: n_inner back-to-back
+    asynchronous calls, one sync, divided by n_inner; median of n_runs. This is crocket's own
+    protocol (benchmarks/README.md), used for every GPU library so they're comparable.
+    fn() launches work and returns something; sync(last_result) blocks until it is done."""
+    for _ in range(n_warmup):
+        sync(fn())
+    samples = []
+    for _ in range(n_runs):
+        start = time.perf_counter()
+        last = None
+        for _ in range(n_inner):
+            last = fn()
+        sync(last)
+        samples.append((time.perf_counter() - start) / n_inner)
+    return float(np.median(samples)) * 1e6
+
+
 def save(spec: RobotSpec, library: str, device: str, precision: str, latency_us: float,
          per_config_us_by_batch: dict, accuracy_poses: list, note: str = "",
-         build_seconds: float = None) -> None:
+         build_seconds: float = None, task: str = "fk") -> None:
+    """task "jac": accuracy_poses holds (N, 3*dof) row-major position Jacobians in spec.joints
+    order, saved as jac_<library>.json. latency_us: synchronized wall-clock of one batch-1 call (None if not measured).
+    per_config_us_by_batch: amortized (see amortized_us) time per configuration."""
     out_dir = RESULTS / spec.name
     out_dir.mkdir(parents=True, exist_ok=True)
     record = {
@@ -145,7 +180,9 @@ def save(spec: RobotSpec, library: str, device: str, precision: str, latency_us:
         "accuracy_poses": accuracy_poses,
         "build_seconds": build_seconds,
         "note": note,
+        "task": task,
     }
-    path = out_dir / f"{library}.json"
+    path = out_dir / (f"{library}.json" if task == "fk" else f"{task}_{library}.json")
     path.write_text(json.dumps(record, indent=1))
-    print(f"[{spec.name}/{library}] batch-1 latency {latency_us:.2f} us; wrote {path}")
+    lat = f"{latency_us:.2f} us" if latency_us is not None else "n/a"
+    print(f"[{spec.name}/{library}] batch-1 wall-clock {lat}; wrote {path}")

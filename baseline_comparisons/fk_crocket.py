@@ -66,15 +66,15 @@ def main() -> None:
             x = inputs(common.sample_configs(spec, b, seed=b))
             ms = float(np.median([built.run(i, x, reps=REPS)[1] for _ in range(RUNS)]))
             per_config[b] = ms * 1000.0 / b
-        latency = per_config[1]
 
         out, _ = built.run(i, inputs(common.accuracy_configs(spec)))
         res = out["poses"]  # (N, 12): translation, then the 3x3 rotation column-major
         poses = [common.to_pose_row(o[:3], rot_to_quat_wxyz(o[3:12].reshape(3, 3, order="F"))) for o in res]
 
-        common.save(spec, library, "gpu", "float32", latency, per_config, poses,
-                    note="crocket harness: GPU kernel time per launch (events, back-to-back launches, "
-                         "no sync/launch overhead; compare at large batch)",
+        common.save(spec, library, "gpu", "float32", None, per_config, poses,
+                    note="crocket harness: GPU kernel time per launch (CUDA events over 50 "
+                         "back-to-back launches); no wall-clock b=1 figure (its harness doesn't "
+                         "measure one). Same protocol as the amortized columns of the other GPU libraries.",
                     build_seconds=build_seconds)
 
 

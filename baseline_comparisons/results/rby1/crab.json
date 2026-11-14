@@ -5,9 +5,9 @@
  "device": "cpu",
  "precision": "float64",
  "link": "left_arm/tool",
- "latency_us_batch1": 6.030502845533192,
+ "latency_us_batch1": 6.094007403589785,
  "per_config_us_by_batch": {
-  "1": 6.030502845533192
+  "1": 6.094007403589785
  },
  "accuracy_poses": [
   [
@@ -587,6 +587,6 @@
    -0.3245565716131649
   ]
  ],
- "build_seconds": 0.6698006270016776,
+ "build_seconds": 0.16626103200542275,
  "note": "includes Python binder overhead (ctypes buffer build + np array out)"
 }

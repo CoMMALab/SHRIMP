@@ -36,3 +36,12 @@ def task_space_distance(robot: Robot, q, goal_pose_flat) -> sf.Matrix:
     goal_pose = sf.Pose3.from_storage(list(goal_pose_flat))
     rel = goal_pose.inverse() * ee_pose
     return sf.Matrix([rel.t.norm()])
+
+
+def q_to_ee_position_jacobian(robot: Robot, q) -> sf.Matrix:
+    """q -> flat row-major 3 x nq Jacobian d(position)/dq of robot.end_effectors[0], columns in
+    q order (zero for joints not on the chain). Equals the linear rows of a world-aligned frame
+    Jacobian, so it is directly comparable across libraries."""
+    ee_pose = q_to_eeposes(robot, q, [robot.end_effectors[0]])[0]
+    jac = sf.Matrix(ee_pose.t).jacobian(sf.Matrix(q))
+    return sf.Matrix(jac.to_flat_list())

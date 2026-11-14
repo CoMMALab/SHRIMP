@@ -1,5 +1,6 @@
 """cuRobo FK. Run in the curobo env: python baseline_comparisons/fk_curobo.py [--robot panda|rby1]
-Loads the shared URDF directly (KinematicsCfg.from_basic_urdf: FK only, no collision)."""
+Loads the shared URDF directly (KinematicsCfg.from_basic_urdf: FK only, no collision).
+Per-config times use the shared amortized protocol; batch-1 wall-clock is recorded separately."""
 
 import numpy as np
 import torch
@@ -22,19 +23,17 @@ def main() -> None:
         q = torch.tensor(full, dtype=torch.float32, device=dev)
         return JointState.from_position(q, joint_names=names)
 
-    def timed(batch: int, n_calls: int) -> float:
-        js = make_js(common.sample_configs(spec, batch, seed=batch))  # built outside the timer
-
-        def call():
-            kin.compute_kinematics(js)
-            torch.cuda.synchronize()
-
-        return common.median_us(call, n_calls=n_calls)
-
     per_config = {}
+    wall_batch1 = None
     for b in common.BATCH_SIZES:
-        per_config[b] = timed(b, n_calls=200 if b <= 4096 else 50) / b
-    latency = per_config[1]
+        js = make_js(common.sample_configs(spec, b, seed=b))  # built outside the timer
+        per_config[b] = common.amortized_us(
+            lambda: kin.compute_kinematics(js), lambda _: torch.cuda.synchronize()) / b
+        if b == 1:
+            def call():
+                kin.compute_kinematics(js)
+                torch.cuda.synchronize()
+            wall_batch1 = common.median_us(call, n_calls=1000)
 
     state = kin.compute_kinematics(make_js(common.accuracy_configs(spec)))
     pose = state.tool_poses.get_link_pose(spec.link)
@@ -42,9 +41,9 @@ def main() -> None:
     quat = pose.quaternion.detach().cpu().numpy().reshape(-1, 4)  # wxyz
     poses = [common.to_pose_row(p, qt) for p, qt in zip(pos, quat)]
 
-    common.save(spec, "curobo", "gpu", "float32", latency, per_config, poses,
-                note=f"compute_kinematics only (JointState built outside timer); synchronized per call; "
-                     f"computes {len(frames)} tool frame(s): {frames}")
+    common.save(spec, "curobo", "gpu", "float32", wall_batch1, per_config, poses,
+                note=f"compute_kinematics only (JointState built outside timer); amortized over "
+                     f"back-to-back calls; computes {len(frames)} tool frame(s): {frames}")
 
 
 if __name__ == "__main__":

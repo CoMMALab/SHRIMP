@@ -5,13 +5,15 @@
  "device": "gpu",
  "precision": "float32",
  "link": "left_arm/tool",
- "latency_us_batch1": 2.682879799976945,
+ "latency_us_batch1": null,
  "per_config_us_by_batch": {
-  "1": 2.682879799976945,
-  "16": 0.23887999122962356,
-  "256": 0.015515000995947048,
-  "4096": 0.0009699999736767495,
-  "65536": 8.781249505318556e-05
+  "1": 2.724480116739869,
+  "16": 0.23936000070534647,
+  "256": 0.015519999578827992,
+  "4096": 0.000995000050352246,
+  "65536": 8.843750265441486e-05,
+  "262144": 0.00014406249704279617,
+  "1048576": 0.00023117186742638296
  },
  "accuracy_poses": [
   [
@@ -591,6 +593,6 @@
    -0.3245565593242645
   ]
  ],
- "build_seconds": 2.3450070020044222,
- "note": "crocket harness: GPU kernel time per launch (events, back-to-back launches, no sync/launch overhead; compare at large batch)"
+ "build_seconds": 0.8586791239940794,
+ "note": "crocket harness: GPU kernel time per launch (CUDA events over 50 back-to-back launches); no wall-clock b=1 figure (its harness doesn't measure one). Same protocol as the amortized columns of the other GPU libraries."
 }

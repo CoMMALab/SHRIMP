@@ -1,6 +1,7 @@
 """pyroffi FK, JAX and CUDA backends.
 Run in the pyroffi env: python baseline_comparisons/fk_pyroffi.py [--robot panda|rby1]
-GPU:  python ...    CPU baseline (JAX on CPU):  JAX_PLATFORMS=cpu python ..."""
+GPU:  python ...    CPU baseline (JAX on CPU):  JAX_PLATFORMS=cpu python ...
+Per-config times use the shared amortized protocol; batch-1 wall-clock is recorded separately."""
 
 import os
 
@@ -17,22 +18,29 @@ def bench_backend(spec, name: str, robot, use_cuda: bool, device: str) -> None:
     fk = jax.jit(lambda cfg: robot.forward_kinematics(cfg, use_cuda=use_cuda))
     link_idx = robot.links.names.index(spec.link)
     names = list(robot.joints.actuated_names)  # fingers etc. not in spec.joints stay 0
+    on_gpu = device == "gpu"
 
     def pad(q: np.ndarray) -> jnp.ndarray:
         return jnp.asarray(common.embed(spec, q, names), dtype=jnp.float32)
 
+    batches = [b for b in common.BATCH_SIZES if on_gpu or b <= common.CPU_MAX_BATCH]
+    n_inner, n_runs = (50, 9) if on_gpu else (3, 3)  # CPU at larger batches is slow
+
     per_config = {}
-    for b in common.BATCH_SIZES:
+    wall_batch1 = None
+    for b in batches:
         cfg = pad(common.sample_configs(spec, b, seed=b))
-        call = lambda: jax.block_until_ready(fk(cfg))
-        per_config[b] = common.median_us(call, n_calls=200 if b <= 4096 else 50) / b
-    latency = per_config[1]
+        per_config[b] = common.amortized_us(
+            lambda: fk(cfg), jax.block_until_ready, n_inner=n_inner, n_runs=n_runs) / b
+        if b == 1:
+            wall_batch1 = common.median_us(lambda: jax.block_until_ready(fk(cfg)), n_calls=1000)
 
     out = np.asarray(fk(pad(common.accuracy_configs(spec))))[:, link_idx]  # (N, 7) wxyz_xyz
     poses = [common.to_pose_row(o[4:7], o[0:4]) for o in out]
 
-    common.save(spec, name, device, "float32", latency, per_config, poses,
-                note=f"jax.jit + block_until_ready per call, use_cuda={use_cuda}")
+    common.save(spec, name, device, "float32", wall_batch1, per_config, poses,
+                note=f"jax.jit, use_cuda={use_cuda}; amortized over back-to-back calls "
+                     f"(n_inner={n_inner}); computes all link poses")
 
 
 def main() -> None:

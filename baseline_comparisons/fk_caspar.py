@@ -3,6 +3,8 @@ Run in the crab env: python baseline_comparisons/fk_caspar.py [--robot panda|rby
 
 One CUDA thread per configuration, float32. Data stays in Caspar's structure-of-arrays layout,
 so layout conversion is outside the timer (as it would be in a pipeline that stays on the GPU).
+Per-config times use the shared amortized protocol (common.amortized_us); the batch-1
+wall-clock (synchronized, includes Python/pybind launch overhead) is recorded separately.
 """
 
 import os
@@ -40,27 +42,25 @@ def main() -> None:
     build_seconds = time.perf_counter() - t0  # trace + CUDA codegen + nvcc (incremental if cached)
     print(f"crusty_cuda build {build_seconds:.1f}s")
 
-    def timed(batch: int, n_calls: int) -> float:
-        q_cas = kernel.to_caspar(to_robot_q(common.sample_configs(spec, batch, seed=batch)))
-        out = kernel.run_caspar(q_cas, [], batch)
-
-        def call():
-            kernel.run_caspar(q_cas, [], batch, out=out)
-            torch.cuda.synchronize()
-
-        return common.median_us(call, n_calls=n_calls)
-
     per_config = {}
+    wall_batch1 = None
     for b in common.BATCH_SIZES:
-        per_config[b] = timed(b, n_calls=200 if b <= 4096 else 50) / b
-    latency = per_config[1]
+        q_cas = kernel.to_caspar(to_robot_q(common.sample_configs(spec, b, seed=b)))
+        out = kernel.run_caspar(q_cas, [], b)
+        per_config[b] = common.amortized_us(
+            lambda: kernel.run_caspar(q_cas, [], b, out=out), lambda _: torch.cuda.synchronize()) / b
+        if b == 1:
+            def call():
+                kernel.run_caspar(q_cas, [], 1, out=out)
+                torch.cuda.synchronize()
+            wall_batch1 = common.median_us(call, n_calls=1000)
 
     res = kernel(to_robot_q(common.accuracy_configs(spec))).cpu().numpy()  # [qx,qy,qz,qw,x,y,z]
     poses = [common.to_pose_row(o[4:7], [o[3], o[0], o[1], o[2]]) for o in res]
 
-    common.save(spec, "caspar", "gpu", "float32", latency, per_config, poses,
-                note="crusty_cuda kernel launch only (data pre-converted to caspar layout), "
-                     "synchronized per call; build_seconds = trace + codegen + nvcc "
+    common.save(spec, "caspar", "gpu", "float32", wall_batch1, per_config, poses,
+                note="crusty_cuda kernel launches (data pre-converted to caspar layout); amortized "
+                     "over back-to-back launches; build_seconds = trace + codegen + nvcc "
                      "(delete ~/.cache/crusty/cuda for a cold build)",
                 build_seconds=build_seconds)
 

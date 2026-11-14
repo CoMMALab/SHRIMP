@@ -5,13 +5,15 @@
  "device": "gpu",
  "precision": "float32",
  "link": "left_arm/tool",
- "latency_us_batch1": 53.57500049285591,
+ "latency_us_batch1": 55.228993005584925,
  "per_config_us_by_batch": {
-  "1": 53.57500049285591,
-  "16": 3.3702813198033255,
-  "256": 0.21473240963132412,
-  "4096": 0.013702027956696838,
-  "65536": 0.0008666153350489481
+  "1": 51.606759952846915,
+  "16": 3.1547875005344395,
+  "256": 0.19958281200160854,
+  "4096": 0.012681132872671697,
+  "65536": 0.000796343688769241,
+  "262144": 0.00019925872729587013,
+  "1048576": 0.00010684947954198165
  },
  "accuracy_poses": [
   [
@@ -591,6 +593,6 @@
    -0.324555903673172
   ]
  ],
- "build_seconds": 0.6667199149960652,
- "note": "crusty_cuda kernel launch only (data pre-converted to caspar layout), synchronized per call; build_seconds = trace + codegen + nvcc (delete ~/.cache/crusty/cuda for a cold build)"
+ "build_seconds": 0.49113741698965896,
+ "note": "crusty_cuda kernel launches (data pre-converted to caspar layout); amortized over back-to-back launches; build_seconds = trace + codegen + nvcc (delete ~/.cache/crusty/cuda for a cold build)"
 }
