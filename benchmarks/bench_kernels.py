@@ -93,7 +93,7 @@ def bench_q_to_ee_pose(robot) -> None:
 
 if __name__ == "__main__":
     robot = load_panda_robot()
-    # bench_simple_vs_python(robot)
-    # bench_task_space_distance(robot)
-    # bench_fused(robot)
+    bench_simple_vs_python(robot)
     bench_q_to_ee_pose(robot)
+    bench_task_space_distance(robot)
+    bench_fused(robot)
