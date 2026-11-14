@@ -16,22 +16,22 @@ CMake rebuild every time you touch the math.
 These are deliberately separate, so "add a new kinematic quantity" never means
 touching codegen/JIT code:
 
-- **`crusty_kinematics/derived.py`** — the actual math: plain
+- **`crab_kinematics/derived.py`** — the actual math: plain
   `(robot, q, *extra_inputs) -> sf.Matrix` functions (`forward_kinematics_spheres`,
   `q_to_ee_pose`, `task_space_distance`). No codegen, no JIT, no `crab_*` imports.
   Anything here is just a symbolic function you could evaluate directly in Python.
-- **`crusty_codegen/codegen.py`** — the generic machinery that turns *any* such function
+- **`crab_codegen/codegen.py`** — the generic machinery that turns *any* such function
   into generated C++ (`build_and_generate_function`, `build_and_generate_function_with_jacobian`).
   Knows nothing about FK, poses, or collision checking specifically.
-- **`crusty_codegen/fixtures.py`** — `load_panda_robot()`, a demo/test convenience, not
+- **`crab_codegen/fixtures.py`** — `load_panda_robot()`, a demo/test convenience, not
   part of the machinery either.
 
 One cross-cutting detail this split surfaces: SymForce's symbolic backend
 (`symforce.set_symbolic_api(...)`) is process-global, one-time, order-sensitive
 configuration -- it must run before *anything* does `import symforce.symbolic`,
 regardless of which module happens to be imported first by a given entry point. It's
-centralized in `crusty_model/__init__.py` (rather than wherever used to import first
-"by accident"), since `crusty_model.robot.Robot` is a dependency of essentially every
+centralized in `crab_model/__init__.py` (rather than wherever used to import first
+"by accident"), since `crab_model.robot.Robot` is a dependency of essentially every
 module here that touches `symforce.symbolic`.
 
 ## The one ABI, the one binder
@@ -81,7 +81,7 @@ kernel(q, goal_pose)                         # positional, in extra_inputs' orde
 ```
 
 What happens under the hood, all automatic:
-1. `crusty_codegen.codegen.build_and_generate_function(robot, symbolic_fn, name, extra_inputs)`
+1. `crab_codegen.codegen.build_and_generate_function(robot, symbolic_fn, name, extra_inputs)`
    — builds a symbolic `q` (and one symbolic placeholder per declared extra input),
    calls `symbolic_fn(robot, q, *extras)`, runs `Codegen.function`, generates into a
    scratch dir, and reads the *real* emitted C++ symbol name back out of the
@@ -95,9 +95,9 @@ What happens under the hood, all automatic:
    real `q`/extra symbols (that graph can depend on arbitrary robot-specific Python
    logic -- FK's joint traversal -- that isn't itself symbolic tracing through a
    generic wrapper function).
-2. `crusty_codegen.jit_wrapper.generate_value_wrapper` — wraps the generated function in
+2. `crab_codegen.jit_wrapper.generate_value_wrapper` — wraps the generated function in
    the `void**` ABI.
-3. `crusty_jit.CrabJitEngine.compile(source, module_id)` — JIT-compiles the whole thing
+3. `crusty_jit.CrustyJitEngine.compile(source, module_id)` — JIT-compiles the whole thing
    at `-O3` via `crusty_compilations` (below).
 4. `crusty_jit.binder.bind_jit_function(...)` — looks up the exported symbol and returns
    a `JitFunction`.
@@ -106,13 +106,13 @@ Adding a new one-off function costs exactly: write `symbolic_fn(robot, q)`, call
 `build_simple_jit_function`. No new C++ template, no new builder function, no new
 export to remember.
 
-## Path B — custom/fused kernels (`crusty_codegen/collision_kernel.py`, `crusty_jit/fused.py`)
+## Path B — custom/fused kernels (`crab_codegen/collision_kernel.py`, `crusty_jit/fused.py`)
 
 For cases where fusing multiple generated functions plus hand-written control flow
 into one `-O3` translation unit matters -- collision checking is the example: FK,
 its Jacobian, the self/environment collision-pair loop, and the cost/gradient math
 all live in one hand-written C++ template
-(`crusty_codegen.collision_kernel.FUSED_KERNEL_TEMPLATE`), so the compiler can inline
+(`crab_codegen.collision_kernel.FUSED_KERNEL_TEMPLATE`), so the compiler can inline
 across what would otherwise be call boundaries. Sphere radii and which sphere-index
 pairs to check are known once the robot is loaded (they don't depend on `q`), so
 they're baked in as `constexpr` literals rather than looked up at runtime.
@@ -125,7 +125,7 @@ convenience class (`is_collision_free(q)`, `compute_collision_cost(q, margin)`,
 `compute_collision_cost_with_gradient(q, margin)` methods) -- no bespoke
 `ctypes.CFUNCTYPE` per function.
 
-`crusty_codegen.codegen.build_and_generate_function_with_jacobian(robot,
+`crab_codegen.codegen.build_and_generate_function_with_jacobian(robot,
 symbolic_fn, name)` is Path B's codegen entry point: like Path A's
 `build_and_generate_function`, but also runs `Codegen.function(...).with_jacobian(...)`
 and returns both the value and Jacobian source/symbol names, for pasting into a
@@ -136,17 +136,17 @@ externally anymore; it's only ever consumed internally by a fused kernel's own l
 
 The generic, robot-agnostic engine that takes a C++ source string and hands back
 callable machine code:
-- `crab::jit::ClangCompiler` (`include/jit/compiler.hh`, `src/jit/compiler.cc`) --
+- `crusty::jit::ClangCompiler` (`include/jit/compiler.hh`, `src/jit/compiler.cc`) --
   invokes Clang's compiler internals directly on a source string at `-O3`.
-- `crab::jit::JitSession` (`session.hh`/`.cc`) -- wraps LLVM's ORC JIT, loads compiled
+- `crusty::jit::JitSession` (`session.hh`/`.cc`) -- wraps LLVM's ORC JIT, loads compiled
   code into the process, resolves symbol lookups by name.
-- `crab::jit::DiskObjectCache` (`object_cache.hh`/`.cc`) -- caches compiled objects on
-  disk (`~/.cache/crab/`), keyed by a hash of source + compiler flags (so editing a
-  kernel's source always busts the cache -- see `crab_jit_capi.cc`).
-- `src/crab_jit_capi.cc` -- the plain C API (`crab_jit_create/compile/lookup/destroy`)
-  exposed as `libcrab_jit_capi.so`, called from Python via `ctypes`
-  (`crusty_jit/engine.py`'s `CrabJitEngine`). Also passes `-isystem <Eigen include dir>`
-  (`CRAB_EIGEN_INCLUDE_DIR`, baked in at CMake time) since the Clang driver invocation
+- `crusty::jit::DiskObjectCache` (`object_cache.hh`/`.cc`) -- caches compiled objects on
+  disk (`~/.cache/crusty/`), keyed by a hash of source + compiler flags (so editing a
+  kernel's source always busts the cache -- see `crusty_jit_capi.cc`).
+- `src/crusty_jit_capi.cc` -- the plain C API (`crusty_jit_create/compile/lookup/destroy`)
+  exposed as `libcrusty_jit_capi.so`, called from Python via `ctypes`
+  (`crusty_jit/engine.py`'s `CrustyJitEngine`). Also passes `-isystem <Eigen include dir>`
+  (`CRUSTY_EIGEN_INCLUDE_DIR`, baked in at CMake time) since the Clang driver invocation
   here has no notion of this process's own build flags otherwise.
 
 ## Build
@@ -154,17 +154,17 @@ callable machine code:
 `crusty_compilations/build/` is the only build directory:
 ```
 cmake -S crusty_compilations -B crusty_compilations/build
-cmake --build crusty_compilations/build --target crab_jit_capi
+cmake --build crusty_compilations/build --target crusty_jit_capi
 ```
 
 ## Walkthrough: `fused_demo()` (`examples/demo.py`)
 
-1. `crusty_codegen.fixtures.load_panda_robot()` loads the URDF into a `Robot`.
-2. `crusty_codegen.collision_kernel.build_fused_kernel_source(robot)` generates FK +
+1. `crab_codegen.fixtures.load_panda_robot()` loads the URDF into a `Robot`.
+2. `crab_codegen.collision_kernel.build_fused_kernel_source(robot)` generates FK +
    Jacobian, resolves this robot's sphere radii/collision pairs, and fills in the
    fused C++ template.
 3. `crusty_jit.fused.build_fused_collision_kernel(robot)` compiles that source at `-O3`
-   via `CrabJitEngine` (cached to disk by content hash) and binds the three exported
+   via `CrustyJitEngine` (cached to disk by content hash) and binds the three exported
    functions through `JitFunction`.
 4. `kernel.is_collision_free(q)` / `.compute_collision_cost(q)` /
    `.compute_collision_cost_with_gradient(q)` call straight into machine code compiled

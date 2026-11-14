@@ -9,9 +9,9 @@ list(APPEND CMAKE_PREFIX_PATH "${LLVM_DIR}")
 find_package(Clang REQUIRED CONFIG)
 
 # --------------------------------------------------------------------
-# Find Eigen3 -- JIT'd sources (crusty_codegen's SymForce output, the fused
+# Find Eigen3 -- JIT'd sources (crab_codegen's SymForce output, the fused
 # collision kernel) #include <Eigen/Dense>, so the Clang driver invocation in
-# crab_jit_capi.cc needs Eigen's include dir passed as -isystem at compile time.
+# crusty_jit_capi.cc needs Eigen's include dir passed as -isystem at compile time.
 # --------------------------------------------------------------------
 find_package(Eigen3 REQUIRED)
 
@@ -77,16 +77,16 @@ target_link_libraries(crusty_jit_lib PUBLIC
 # --------------------------------------------------------------------
 # C-API shared library (for Python ctypes)
 # --------------------------------------------------------------------
-add_library(crab_jit_capi SHARED src/crab_jit_capi.cc)
-target_link_libraries(crab_jit_capi PRIVATE crusty_jit_lib)
-target_compile_definitions(crab_jit_capi PRIVATE
-    CRAB_EIGEN_INCLUDE_DIR="${EIGEN3_INCLUDE_DIR}"
+add_library(crusty_jit_capi SHARED src/crusty_jit_capi.cc)
+target_link_libraries(crusty_jit_capi PRIVATE crusty_jit_lib)
+target_compile_definitions(crusty_jit_capi PRIVATE
+    CRUSTY_EIGEN_INCLUDE_DIR="${EIGEN3_INCLUDE_DIR}"
 )
 
 # --------------------------------------------------------------------
 # Installation
 # --------------------------------------------------------------------
-install(TARGETS crusty_jit_lib crab_jit_capi
+install(TARGETS crusty_jit_lib crusty_jit_capi
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin

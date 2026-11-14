@@ -1,4 +1,4 @@
-from crusty_io.urdf import load_urdf, urdf_to_robot
+from crab_io.urdf import load_urdf, urdf_to_robot
 
 
 def test_load_urdf():

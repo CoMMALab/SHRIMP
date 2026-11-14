@@ -1,7 +1,7 @@
 import yourdfpy
-from crusty_model.link import Link, Sphere
-from crusty_model.joint import Joint
-from crusty_model.robot import Robot
+from crab_model.link import Link, Sphere
+from crab_model.joint import Joint
+from crab_model.robot import Robot
 import symforce.symbolic as sf
 
 

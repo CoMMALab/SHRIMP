@@ -12,10 +12,10 @@ bespoke ctypes.CFUNCTYPE class and become a thin wrapper over three generic
 JitFunctions instead.
 """
 
-from crusty_model.robot import Robot
-from crusty_codegen.sphere_order import robot_sphere_list
-from crusty_codegen.codegen import build_and_generate_function_with_jacobian
-from crusty_kinematics.derived import forward_kinematics_spheres
+from crab_model.robot import Robot
+from crab_codegen.sphere_order import robot_sphere_list
+from crab_codegen.codegen import build_and_generate_function_with_jacobian
+from crab_kinematics.derived import forward_kinematics_spheres
 
 FK_IS_FREE = "jit_is_collision_free"
 FK_COST = "jit_compute_collision_cost"
@@ -28,7 +28,7 @@ FUSED_KERNEL_TEMPLATE = """\
 {fk_source}
 {jac_source}
 
-namespace crab_fused {{
+namespace crusty_fused {{
 
 constexpr int kNQ = {nq};
 constexpr int kNSpheres = {n_spheres};
@@ -38,34 +38,34 @@ struct Pair {{ int a; int b; }};
 constexpr int kNumPairs = {n_pairs};
 constexpr Pair kSelfPairs[{pairs_array_size}] = {{{pairs}}};
 
-}}  // namespace crab_fused
+}}  // namespace crusty_fused
 
 // inputs[0] = q (kNQ doubles). outputs[0][0] = 1.0 if collision-free, 0.0 otherwise.
 extern "C" void {fn_is_free}(void** inputs, void** outputs) {{
-    Eigen::Matrix<double, crab_fused::kNQ, 1> q(
-        Eigen::Map<const Eigen::Matrix<double, crab_fused::kNQ, 1>>(reinterpret_cast<const double*>(inputs[0])));
-    Eigen::Matrix<double, crab_fused::kNSpheres * 4, 1> spheres_world =
+    Eigen::Matrix<double, crusty_fused::kNQ, 1> q(
+        Eigen::Map<const Eigen::Matrix<double, crusty_fused::kNQ, 1>>(reinterpret_cast<const double*>(inputs[0])));
+    Eigen::Matrix<double, crusty_fused::kNSpheres * 4, 1> spheres_world =
         sym::{fk_func_name}<double>(q);
 
     double* out = reinterpret_cast<double*>(outputs[0]);
     out[0] = 1.0;
 
-    for (int k = 0; k < crab_fused::kNumPairs; ++k) {{
-        const auto& p = crab_fused::kSelfPairs[k];
+    for (int k = 0; k < crusty_fused::kNumPairs; ++k) {{
+        const auto& p = crusty_fused::kSelfPairs[k];
         double dx = spheres_world(p.a * 4 + 0) - spheres_world(p.b * 4 + 0);
         double dy = spheres_world(p.a * 4 + 1) - spheres_world(p.b * 4 + 1);
         double dz = spheres_world(p.a * 4 + 2) - spheres_world(p.b * 4 + 2);
         double dist_sq = dx * dx + dy * dy + dz * dz;
-        double r_sum = crab_fused::kRadii[p.a] + crab_fused::kRadii[p.b];
+        double r_sum = crusty_fused::kRadii[p.a] + crusty_fused::kRadii[p.b];
         if (dist_sq < r_sum * r_sum) {{
             out[0] = 0.0;
             return;
         }}
     }}
 
-    for (int i = 0; i < crab_fused::kNSpheres; ++i) {{
+    for (int i = 0; i < crusty_fused::kNSpheres; ++i) {{
         double z = spheres_world(i * 4 + 2);
-        if (z < crab_fused::kRadii[i]) {{
+        if (z < crusty_fused::kRadii[i]) {{
             out[0] = 0.0;
             return;
         }}
@@ -74,29 +74,29 @@ extern "C" void {fn_is_free}(void** inputs, void** outputs) {{
 
 // inputs[0] = q (kNQ doubles), inputs[1] = margin (1 double). outputs[0][0] = cost.
 extern "C" void {fn_cost}(void** inputs, void** outputs) {{
-    Eigen::Matrix<double, crab_fused::kNQ, 1> q(
-        Eigen::Map<const Eigen::Matrix<double, crab_fused::kNQ, 1>>(reinterpret_cast<const double*>(inputs[0])));
+    Eigen::Matrix<double, crusty_fused::kNQ, 1> q(
+        Eigen::Map<const Eigen::Matrix<double, crusty_fused::kNQ, 1>>(reinterpret_cast<const double*>(inputs[0])));
     double margin = *reinterpret_cast<const double*>(inputs[1]);
-    Eigen::Matrix<double, crab_fused::kNSpheres * 4, 1> spheres_world =
+    Eigen::Matrix<double, crusty_fused::kNSpheres * 4, 1> spheres_world =
         sym::{fk_func_name}<double>(q);
 
     double total_cost = 0.0;
 
-    for (int k = 0; k < crab_fused::kNumPairs; ++k) {{
-        const auto& p = crab_fused::kSelfPairs[k];
+    for (int k = 0; k < crusty_fused::kNumPairs; ++k) {{
+        const auto& p = crusty_fused::kSelfPairs[k];
         double dx = spheres_world(p.a * 4 + 0) - spheres_world(p.b * 4 + 0);
         double dy = spheres_world(p.a * 4 + 1) - spheres_world(p.b * 4 + 1);
         double dz = spheres_world(p.a * 4 + 2) - spheres_world(p.b * 4 + 2);
         double dist = std::sqrt(dx * dx + dy * dy + dz * dz) -
-                      (crab_fused::kRadii[p.a] + crab_fused::kRadii[p.b]);
+                      (crusty_fused::kRadii[p.a] + crusty_fused::kRadii[p.b]);
         double penetration = margin - dist;
         if (penetration > 0.0) {{
             total_cost += (1.0 / 6.0) * penetration * penetration * penetration;
         }}
     }}
 
-    for (int i = 0; i < crab_fused::kNSpheres; ++i) {{
-        double dist = spheres_world(i * 4 + 2) - crab_fused::kRadii[i];
+    for (int i = 0; i < crusty_fused::kNSpheres; ++i) {{
+        double dist = spheres_world(i * 4 + 2) - crusty_fused::kRadii[i];
         double penetration = margin - dist;
         if (penetration > 0.0) {{
             total_cost += (1.0 / 6.0) * penetration * penetration * penetration;
@@ -109,52 +109,54 @@ extern "C" void {fn_cost}(void** inputs, void** outputs) {{
 // inputs[0] = q (kNQ doubles), inputs[1] = margin (1 double).
 // outputs[0][0] = cost, outputs[1] = grad (kNQ doubles).
 extern "C" void {fn_cost_grad}(void** inputs, void** outputs) {{
-    Eigen::Matrix<double, crab_fused::kNQ, 1> q(
-        Eigen::Map<const Eigen::Matrix<double, crab_fused::kNQ, 1>>(reinterpret_cast<const double*>(inputs[0])));
+    Eigen::Matrix<double, crusty_fused::kNQ, 1> q(
+        Eigen::Map<const Eigen::Matrix<double, crusty_fused::kNQ, 1>>(reinterpret_cast<const double*>(inputs[0])));
     double margin = *reinterpret_cast<const double*>(inputs[1]);
-    Eigen::Matrix<double, crab_fused::kNSpheres * 4, 1> spheres_world =
+    Eigen::Matrix<double, crusty_fused::kNSpheres * 4, 1> spheres_world =
         sym::{fk_func_name}<double>(q);
 
-    Eigen::Matrix<double, crab_fused::kNSpheres * 3, crab_fused::kNQ> jac;
+    // FK outputs [x, y, z, r] per sphere, so the Jacobian has 4 rows per sphere (the
+    // radius row is all zeros); the x/y/z rows are the first 3 of each group of 4.
+    Eigen::Matrix<double, crusty_fused::kNSpheres * 4, crusty_fused::kNQ> jac;
     sym::{jac_func_name}<double>(q, &jac);
 
-    Eigen::Matrix<double, crab_fused::kNQ, 1> grad =
-        Eigen::Matrix<double, crab_fused::kNQ, 1>::Zero();
+    Eigen::Matrix<double, crusty_fused::kNQ, 1> grad =
+        Eigen::Matrix<double, crusty_fused::kNQ, 1>::Zero();
     double total_cost = 0.0;
 
-    for (int k = 0; k < crab_fused::kNumPairs; ++k) {{
-        const auto& p = crab_fused::kSelfPairs[k];
+    for (int k = 0; k < crusty_fused::kNumPairs; ++k) {{
+        const auto& p = crusty_fused::kSelfPairs[k];
         Eigen::Vector3d pos_a(spheres_world(p.a * 4 + 0), spheres_world(p.a * 4 + 1), spheres_world(p.a * 4 + 2));
         Eigen::Vector3d pos_b(spheres_world(p.b * 4 + 0), spheres_world(p.b * 4 + 1), spheres_world(p.b * 4 + 2));
         Eigen::Vector3d diff = pos_a - pos_b;
         double dist_norm = diff.norm();
         if (dist_norm < 1e-6) continue;
 
-        double dist = dist_norm - (crab_fused::kRadii[p.a] + crab_fused::kRadii[p.b]);
+        double dist = dist_norm - (crusty_fused::kRadii[p.a] + crusty_fused::kRadii[p.b]);
         double penetration = margin - dist;
         if (penetration > 0.0) {{
             total_cost += (1.0 / 6.0) * penetration * penetration * penetration;
             double dCost_dDist = -0.5 * penetration * penetration;
             Eigen::Vector3d dir = diff / dist_norm;
-            auto J_a = jac.template block<3, crab_fused::kNQ>(p.a * 3, 0);
-            auto J_b = jac.template block<3, crab_fused::kNQ>(p.b * 3, 0);
+            auto J_a = jac.template block<3, crusty_fused::kNQ>(p.a * 4, 0);
+            auto J_b = jac.template block<3, crusty_fused::kNQ>(p.b * 4, 0);
             grad += dCost_dDist * (dir.transpose() * (J_a - J_b)).transpose();
         }}
     }}
 
-    for (int i = 0; i < crab_fused::kNSpheres; ++i) {{
-        double dist = spheres_world(i * 4 + 2) - crab_fused::kRadii[i];
+    for (int i = 0; i < crusty_fused::kNSpheres; ++i) {{
+        double dist = spheres_world(i * 4 + 2) - crusty_fused::kRadii[i];
         double penetration = margin - dist;
         if (penetration > 0.0) {{
             total_cost += (1.0 / 6.0) * penetration * penetration * penetration;
             double dCost_dDist = -0.5 * penetration * penetration;
-            auto J = jac.template block<3, crab_fused::kNQ>(i * 3, 0);
+            auto J = jac.template block<3, crusty_fused::kNQ>(i * 4, 0);
             grad += dCost_dDist * J.row(2).transpose();
         }}
     }}
 
     reinterpret_cast<double*>(outputs[0])[0] = total_cost;
-    Eigen::Map<Eigen::Matrix<double, crab_fused::kNQ, 1>>(reinterpret_cast<double*>(outputs[1])) = grad;
+    Eigen::Map<Eigen::Matrix<double, crusty_fused::kNQ, 1>>(reinterpret_cast<double*>(outputs[1])) = grad;
 }}
 """
 

@@ -28,7 +28,7 @@ namespace
             });
     }
 
-    auto build_jit(std::shared_ptr<crab::jit::DiskObjectCache> cache) -> std::unique_ptr<lo::LLJIT>
+    auto build_jit(std::shared_ptr<crusty::jit::DiskObjectCache> cache) -> std::unique_ptr<lo::LLJIT>
     {
         init_native_target();
 
@@ -51,13 +51,13 @@ namespace
         if (not jit)
         {
             throw std::runtime_error(
-                "crab::jit: LLJIT construction failed: " + llvm::toString(jit.takeError()));
+                "crusty::jit: LLJIT construction failed: " + llvm::toString(jit.takeError()));
         }
         return std::move(*jit);
     }
 }  // namespace
 
-namespace crab::jit
+namespace crusty::jit
 {
     JitSession::JitSession(std::shared_ptr<DiskObjectCache> cache)
       : cache_(std::move(cache)), jit_(build_jit(cache_))
@@ -67,7 +67,7 @@ namespace crab::jit
         if (not generator)
         {
             throw std::runtime_error(
-                "crab::jit: DynamicLibrarySearchGenerator failed: " +
+                "crusty::jit: DynamicLibrarySearchGenerator failed: " +
                 llvm::toString(generator.takeError()));
         }
         jit_->getMainJITDylib().addGenerator(std::move(*generator));
@@ -99,5 +99,5 @@ namespace crab::jit
     {
         return jit_->lookup(symbol);
     }
-}  // namespace crab::jit
+}  // namespace crusty::jit
 

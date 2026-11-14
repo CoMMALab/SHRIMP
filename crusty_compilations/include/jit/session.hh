@@ -11,7 +11,7 @@
 
 namespace lo = llvm::orc;
 
-namespace crab::jit
+namespace crusty::jit
 {
     class JitSession
     {
@@ -43,5 +43,5 @@ namespace crab::jit
         std::shared_ptr<DiskObjectCache> cache_;
         std::unique_ptr<lo::LLJIT> jit_;
     };
-}  // namespace crab::jit
+}  // namespace crusty::jit
 

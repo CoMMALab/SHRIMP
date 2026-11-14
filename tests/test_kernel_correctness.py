@@ -8,10 +8,12 @@ You run this yourself (see CLAUDE.md): `python -m tests.test_kernel_correctness`
 """
 
 import numpy as np
+
+import crab_model  # noqa: F401 -- must run before anything imports symforce.symbolic
 import symforce.symbolic as sf
 
-from crusty_codegen.fixtures import load_panda_robot
-from crusty_kinematics.derived import forward_kinematics_spheres, q_to_ee_pose
+from crab_codegen.fixtures import load_panda_robot
+from crab_kinematics.derived import forward_kinematics_spheres, q_to_ee_pose
 from crusty_jit import build_simple_jit_function, build_fused_collision_kernel
 
 

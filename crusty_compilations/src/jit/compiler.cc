@@ -28,10 +28,10 @@
 
 namespace
 {
-    constexpr const char *kVirtualSourceName = "crab_jit_input.cc";
+    constexpr const char *kVirtualSourceName = "crusty_jit_input.cc";
 }  // namespace
 
-namespace crab::jit
+namespace crusty::jit
 {
     auto hash_source(const std::string &source, const CompileOptions &opts) -> std::string
     {
@@ -65,11 +65,11 @@ namespace crab::jit
             sha.update(i);
         }
 
-        return "crab-" + llvm::toHex(sha.final(), true);
+        return "crusty-" + llvm::toHex(sha.final(), true);
     }
-}  // namespace crab::jit
+}  // namespace crusty::jit
 
-namespace crab::jit
+namespace crusty::jit
 {
     ClangCompiler::ClangCompiler() = default;
     ClangCompiler::~ClangCompiler() = default;
@@ -136,7 +136,7 @@ namespace crab::jit
         auto clang_path = llvm::sys::findProgramByName("clang");
         if (not clang_path)
         {
-            throw std::runtime_error("crab::jit: cannot find clang on PATH");
+            throw std::runtime_error("crusty::jit: cannot find clang on PATH");
         }
 
         clang::driver::Driver driver(*clang_path, llvm::sys::getDefaultTargetTriple(), diags);
@@ -147,13 +147,13 @@ namespace crab::jit
         if (not compilation or compilation->containsError())
         {
             diag_stream.flush();
-            throw std::runtime_error("crab::jit: driver compilation build failed:\n" + diag_text);
+            throw std::runtime_error("crusty::jit: driver compilation build failed:\n" + diag_text);
         }
 
         const auto &jobs = compilation->getJobs();
         if (jobs.size() != 1)
         {
-            throw std::runtime_error("crab::jit: expected 1 cc1 job, got " + std::to_string(jobs.size()));
+            throw std::runtime_error("crusty::jit: expected 1 cc1 job, got " + std::to_string(jobs.size()));
         }
 
         const auto &cmd = *jobs.begin();
@@ -171,7 +171,7 @@ namespace crab::jit
         {
             diag_stream.flush();
             throw std::runtime_error(
-                "crab::jit: CompilerInvocation::CreateFromArgs failed:\n" + diag_text);
+                "crusty::jit: CompilerInvocation::CreateFromArgs failed:\n" + diag_text);
         }
 
         // clang::CompilerInstance ci(invocation);
@@ -188,14 +188,14 @@ namespace crab::jit
         if (not ci.ExecuteAction(*action))
         {
             diag_stream.flush();
-            throw std::runtime_error("crab::jit: compilation failed:\n" + diag_text);
+            throw std::runtime_error("crusty::jit: compilation failed:\n" + diag_text);
         }
 
         auto module = action->takeModule();
         if (not module)
         {
             diag_stream.flush();
-            throw std::runtime_error("crab::jit: action produced no module:\n" + diag_text);
+            throw std::runtime_error("crusty::jit: action produced no module:\n" + diag_text);
         }
 
         std::string id = opts.module_id.empty() ? hash_source(source, opts) : opts.module_id;
@@ -204,5 +204,5 @@ namespace crab::jit
 
         return llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
     }
-}  // namespace crab::jit
+}  // namespace crusty::jit
 

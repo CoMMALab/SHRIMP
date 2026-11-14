@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <system_error>
 
-namespace crab::jit
+namespace crusty::jit
 {
     DiskObjectCache::DiskObjectCache(std::filesystem::path dir) : dir_(std::move(dir))
     {
@@ -20,7 +20,7 @@ namespace crab::jit
         if (ec)
         {
             throw std::runtime_error(
-                "crab::jit: cannot create cache dir " + dir_.string() + ": " + ec.message());
+                "crusty::jit: cannot create cache dir " + dir_.string() + ": " + ec.message());
         }
     }
 
@@ -75,15 +75,15 @@ namespace crab::jit
     {
         if (const char *xdg = std::getenv("XDG_CACHE_HOME"); xdg != nullptr and xdg[0] != '\0')
         {
-            return std::filesystem::path(xdg) / "crab";
+            return std::filesystem::path(xdg) / "crusty";
         }
 
         if (const char *home = std::getenv("HOME"); home != nullptr and home[0] != '\0')
         {
-            return std::filesystem::path(home) / ".cache" / "crab";
+            return std::filesystem::path(home) / ".cache" / "crusty";
         }
 
-        return std::filesystem::temp_directory_path() / "crab";
+        return std::filesystem::temp_directory_path() / "crusty";
     }
-}  // namespace crab::jit
+}  // namespace crusty::jit
 

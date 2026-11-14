@@ -7,46 +7,46 @@
 #include <string>
 #include <unordered_map>
 
-struct CrabJitContext
+struct CrustyJitContext
 {
-    std::shared_ptr<crab::jit::DiskObjectCache> cache;
-    crab::jit::ClangCompiler compiler;
-    std::unique_ptr<crab::jit::JitSession> session;
+    std::shared_ptr<crusty::jit::DiskObjectCache> cache;
+    crusty::jit::ClangCompiler compiler;
+    std::unique_ptr<crusty::jit::JitSession> session;
     std::unordered_map<std::string, void *> symbols;
 };
 
 extern "C"
 {
-    CrabJitContext *crab_jit_create()
+    CrustyJitContext *crusty_jit_create()
     {
-        auto ctx = new CrabJitContext();
-        ctx->cache = std::make_shared<crab::jit::DiskObjectCache>(crab::jit::default_cache_dir());
-        ctx->session = std::make_unique<crab::jit::JitSession>(ctx->cache);
+        auto ctx = new CrustyJitContext();
+        ctx->cache = std::make_shared<crusty::jit::DiskObjectCache>(crusty::jit::default_cache_dir());
+        ctx->session = std::make_unique<crusty::jit::JitSession>(ctx->cache);
         return ctx;
     }
 
-    void crab_jit_destroy(CrabJitContext *ctx)
+    void crusty_jit_destroy(CrustyJitContext *ctx)
     {
         delete ctx;
     }
 
-    int crab_jit_compile(CrabJitContext *ctx, const char *source, const char *module_id)
+    int crusty_jit_compile(CrustyJitContext *ctx, const char *source, const char *module_id)
     {
         if (!ctx || !source || !module_id)
         {
             // Complain with failure
-            llvm::errs() << "crab::jit: invalid arguments to crab_jit_compile\n";
+            llvm::errs() << "crusty::jit: invalid arguments to crusty_jit_compile\n";
             return -1;
         }
 
-        crab::jit::CompileOptions opts;
-#ifdef CRAB_EIGEN_INCLUDE_DIR
+        crusty::jit::CompileOptions opts;
+#ifdef CRUSTY_EIGEN_INCLUDE_DIR
         // JIT'd sources (SymForce-generated FK/Jacobian, the fused collision kernel)
         // #include <Eigen/Dense>. The Clang driver invocation in ClangCompiler::compile
         // has no notion of this process's own build flags, so Eigen's include dir has
-        // to be passed explicitly -- CRAB_EIGEN_INCLUDE_DIR is baked in at build time
+        // to be passed explicitly -- CRUSTY_EIGEN_INCLUDE_DIR is baked in at build time
         // from the Eigen3 CMake package (see crusty_compilations/CMakeLists.txt).
-        opts.system_include_dirs.push_back(CRAB_EIGEN_INCLUDE_DIR);
+        opts.system_include_dirs.push_back(CRUSTY_EIGEN_INCLUDE_DIR);
 #endif
         // The disk cache is keyed by opts.module_id alone. If we used the caller's
         // module_id verbatim, editing the source (e.g. regenerating a kernel template)
@@ -54,7 +54,7 @@ extern "C"
         // Fold a content hash (source + flags) into the key so any source/flag change
         // invalidates the cache, while keeping the caller's id as a readable prefix.
         const std::string cache_key =
-            std::string(module_id) + "-" + crab::jit::hash_source(source, opts);
+            std::string(module_id) + "-" + crusty::jit::hash_source(source, opts);
         opts.module_id = cache_key;
 
         auto cached_obj = ctx->cache->load_object(cache_key);
@@ -63,7 +63,7 @@ extern "C"
             if (auto err = ctx->session->add_object_file(std::move(cached_obj)))
             {
                 llvm::consumeError(std::move(err));
-                llvm::errs() << "crab::jit: add_object_file failed: " << err << "\n";
+                llvm::errs() << "crusty::jit: add_object_file failed: " << err << "\n";
                 return -2;
             }
             return 1; // Cache hit
@@ -75,24 +75,24 @@ extern "C"
             if (auto err = ctx->session->add_module(std::move(tsm)))
             {
                 llvm::consumeError(std::move(err));
-                llvm::errs() << "crab::jit: add_module failed\n";
+                llvm::errs() << "crusty::jit: add_module failed\n";
                 return -3;
             }
         }
         catch (const std::exception &e)
         {
             // llvm::consumeError(std::move(e));
-            llvm::errs() << "crab::jit: compile failed: " << e.what() << "\n";
+            llvm::errs() << "crusty::jit: compile failed: " << e.what() << "\n";
             return -4;
         }
         return 0; // compiled fresh
     }
 
-    void *crab_jit_lookup(CrabJitContext *ctx, const char *symbol)
+    void *crusty_jit_lookup(CrustyJitContext *ctx, const char *symbol)
     {
         if (!ctx || !symbol)
         {
-            llvm::errs() << "crab::jit: invalid arguments to crab_jit_lookup\n";
+            llvm::errs() << "crusty::jit: invalid arguments to crusty_jit_lookup\n";
             return nullptr;
         }
 
@@ -107,7 +107,7 @@ extern "C"
         if (!addr)
         {
             llvm::consumeError(addr.takeError());
-            llvm::errs() << "crab::jit: lookup failed for symbol: " << symbol << "\n";
+            llvm::errs() << "crusty::jit: lookup failed for symbol: " << symbol << "\n";
             return nullptr;
         }
         void *ptr = addr->toPtr<void *>();

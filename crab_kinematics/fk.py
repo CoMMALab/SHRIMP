@@ -1,4 +1,4 @@
-from crusty_model.robot import Robot
+from crab_model.robot import Robot
 import symforce.symbolic as sf
 from typing import List
 

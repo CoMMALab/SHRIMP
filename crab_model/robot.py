@@ -87,10 +87,10 @@ class Robot:
         # Index-based alternative to keying by link name: SymForce's symbolic tree
         # walking (StorageOps) only knows how to recurse into list/tuple/Matrix/Values
         # containers, not dict, so anything symbolic keyed by link name (e.g.
-        # crusty_kinematics.fk's link_poses) has to be addressed by index instead.
+        # crab_kinematics.fk's link_poses) has to be addressed by index instead.
         # Root gets index 0; every other link gets the index of the joint that first
         # visits it as a child in traversal_order, so this stays consistent with the
-        # ordering already used elsewhere (e.g. crusty_codegen/sphere_order.py).
+        # ordering already used elsewhere (e.g. crab_codegen/sphere_order.py).
         self.link_name_to_index = {self.root.name: 0}
         for i, joint_name in enumerate(self.traversal_order):
             child_link = self.joints[joint_name].child

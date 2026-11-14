@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace crab::jit
+namespace crusty::jit
 {
     struct CompileOptions
     {

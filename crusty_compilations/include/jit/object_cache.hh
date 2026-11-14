@@ -6,7 +6,7 @@
 #include <memory>
 #include <string>
 
-namespace crab::jit
+namespace crusty::jit
 {
     class DiskObjectCache : public llvm::ObjectCache
     {
@@ -32,5 +32,5 @@ namespace crab::jit
     };
 
     auto default_cache_dir() -> std::filesystem::path;
-}  // namespace crab::jit
+}  // namespace crusty::jit
 

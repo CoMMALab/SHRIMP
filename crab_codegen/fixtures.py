@@ -1,8 +1,8 @@
 """Robot fixtures for demos/tests/benchmarks -- not part of the codegen/JIT machinery
 itself, just a convenient specific robot to run examples against."""
 
-from crusty_model.robot import Robot
-from crusty_io.urdf import load_urdf, urdf_to_robot
+from crab_model.robot import Robot
+from crab_io.urdf import load_urdf, urdf_to_robot
 
 
 def load_panda_robot() -> Robot:

@@ -2,7 +2,7 @@
 the `void** inputs, void** outputs` calling convention -- the one and only ABI boundary
 between JIT'd C++ and Python in this codebase. Both authoring paths
 use it: crusty_jit.simple (Path A, one auto-generated function, any number of inputs)
-and hand-written fused kernels (Path B, e.g. crusty_codegen/collision_kernel.py) alike.
+and hand-written fused kernels (Path B, e.g. crab_codegen/collision_kernel.py) alike.
 
 SymForce's default CppConfig emits, for a Codegen.function() with a single Matrix
 return value, a function that returns its result by value, one parameter per declared
@@ -12,7 +12,7 @@ input:
     Eigen::Matrix<Scalar, N, 1> FuncName(const Eigen::Matrix<Scalar, NQ, 1>& q,
                                          const Eigen::Matrix<Scalar, M, 1>& extra) { ... }
 
-crusty_codegen.codegen reads the real emitted function name back out of the
+crab_codegen.codegen reads the real emitted function name back out of the
 generated source (SymForce reformats whatever name you pass to its own C++ naming
 convention), so there's no name-guessing here -- only the ABI wrapper.
 """

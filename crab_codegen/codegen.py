@@ -1,6 +1,6 @@
 """Generic codegen machinery: turns a plain `symbolic_fn(robot, q, *extra) -> sf.Matrix`
-function (see crusty_kinematics.derived for the actual math) into generated C++ source
-plus the real emitted symbol name, ready for crusty_jit.simple/crusty_codegen.collision_kernel
+function (see crab_kinematics.derived for the actual math) into generated C++ source
+plus the real emitted symbol name, ready for crusty_jit.simple/crab_codegen.collision_kernel
 to wrap in the void**-ABI and JIT. No robot-specific math lives here.
 """
 
@@ -13,7 +13,7 @@ import symforce
 import symforce.symbolic as sf
 from symforce.codegen import Codegen, CppConfig
 
-from crusty_model.robot import Robot
+from crab_model.robot import Robot
 
 
 def _make_traced_func(param_names: list[str], expr):
@@ -84,7 +84,7 @@ def build_and_generate_function(robot: Robot, symbolic_fn, name: str,
     symbolic_fn(robot, q, *extra_values) -> sf.Matrix, an (n, 1) column vector.
     extra_inputs declares any inputs beyond q as (name, size) pairs -- e.g.
     [("goal_pose", 7)] for a flat Pose3.to_storage() goal (see
-    crusty_kinematics.derived.task_space_distance). Each becomes its own
+    crab_kinematics.derived.task_space_distance). Each becomes its own
     sf.Matrix(size, 1).symbolic(name) argument and its own void** input slot, in
     declaration order after q. n_out is read back from symbolic_fn's own returned
     Matrix shape rather than asked for separately.
@@ -104,7 +104,7 @@ def build_and_generate_function(robot: Robot, symbolic_fn, name: str,
 
     codegen = Codegen.function(func=traced_func, name=name, input_types=input_types, config=CppConfig())
 
-    with tempfile.TemporaryDirectory(prefix="crab_jit_codegen_") as tmp_dir:
+    with tempfile.TemporaryDirectory(prefix="crusty_jit_codegen_") as tmp_dir:
         result = codegen.generate_function(output_dir=tmp_dir)
         source = _find_generated_header(result, tmp_dir, name)
 
@@ -120,7 +120,7 @@ def build_and_generate_function_with_jacobian(robot: Robot, symbolic_fn, name: s
     of symbolic_fn's output w.r.t. q (only ever w.r.t. q -- extra_inputs, if any, are
     passed through as additional non-differentiated arguments, e.g. a goal pose), for
     embedding both the value and its Jacobian into one hand-written fused kernel
-    translation unit (see crusty_codegen.collision_kernel). Path A never needs a Jacobian -- nothing exposes a raw
+    translation unit (see crab_codegen.collision_kernel). Path A never needs a Jacobian -- nothing exposes a raw
     Jacobian externally anymore, it's only ever consumed internally by a fused
     kernel's own control flow.
     """
@@ -141,7 +141,7 @@ def build_and_generate_function_with_jacobian(robot: Robot, symbolic_fn, name: s
     jac_name = f"{name}_jacobian"
     codegen_jac = codegen_value.with_jacobians(which_args=["q"], name=jac_name)
 
-    with tempfile.TemporaryDirectory(prefix="crab_jit_codegen_") as tmp_dir:
+    with tempfile.TemporaryDirectory(prefix="crusty_jit_codegen_") as tmp_dir:
         value_dir = os.path.join(tmp_dir, "value")
         jac_dir = os.path.join(tmp_dir, "jac")
 

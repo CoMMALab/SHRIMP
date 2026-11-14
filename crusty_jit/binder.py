@@ -1,6 +1,6 @@
 """The one Python<->native binding mechanism in this codebase: every JIT'd C++
 function -- whether auto-generated (Path A, crusty_jit.simple) or hand-written/fused
-(Path B, e.g. crusty_codegen.collision_kernel) -- exports `void fn(void** inputs, void**
+(Path B, e.g. crab_codegen.collision_kernel) -- exports `void fn(void** inputs, void**
 outputs)` and gets bound through JitFunction, the same way.
 
 Python-side inputs may be a list, tuple, numpy array, or a bare scalar; each is
@@ -15,7 +15,7 @@ from typing import Sequence, Union
 
 import numpy as np
 
-from .engine import CrabJitEngine
+from .engine import CrustyJitEngine
 
 ArrayLike = Union[Sequence[float], np.ndarray, float, int]
 
@@ -31,7 +31,7 @@ class JitFunction:
     """Callable wrapper around one JIT'd `void fn(void** inputs, void** outputs)`
     function with a fixed, known number/size of flat double inputs and outputs."""
 
-    def __init__(self, engine: CrabJitEngine, wrapper_name: str,
+    def __init__(self, engine: CrustyJitEngine, wrapper_name: str,
                  input_sizes: Sequence[int], output_sizes: Sequence[int]):
         self._engine = engine
         self._input_sizes = list(input_sizes)
@@ -59,6 +59,6 @@ class JitFunction:
         return results[0] if len(results) == 1 else results
 
 
-def bind_jit_function(engine: CrabJitEngine, wrapper_name: str,
+def bind_jit_function(engine: CrustyJitEngine, wrapper_name: str,
                        input_sizes: Sequence[int], output_sizes: Sequence[int]) -> JitFunction:
     return JitFunction(engine, wrapper_name, input_sizes, output_sizes)
