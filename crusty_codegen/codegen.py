@@ -1,6 +1,6 @@
 """Generic codegen machinery: turns a plain `symbolic_fn(robot, q, *extra) -> sf.Matrix`
 function (see crusty_kinematics.derived for the actual math) into generated C++ source
-plus the real emitted symbol name, ready for crab_jit.simple/crab_codegen.collision_kernel
+plus the real emitted symbol name, ready for crusty_jit.simple/crusty_codegen.collision_kernel
 to wrap in the void**-ABI and JIT. No robot-specific math lives here.
 """
 
@@ -79,7 +79,7 @@ def _extract_generated_function_name(source: str, requested_name: str) -> str:
 def build_and_generate_function(robot: Robot, symbolic_fn, name: str,
                                  extra_inputs: list[tuple[str, int]] | None = None) -> dict:
     """Generic one-shot codegen for a Path-A function, for use with
-    crab_jit.simple.build_simple_jit_function.
+    crusty_jit.simple.build_simple_jit_function.
 
     symbolic_fn(robot, q, *extra_values) -> sf.Matrix, an (n, 1) column vector.
     extra_inputs declares any inputs beyond q as (name, size) pairs -- e.g.
@@ -120,7 +120,7 @@ def build_and_generate_function_with_jacobian(robot: Robot, symbolic_fn, name: s
     of symbolic_fn's output w.r.t. q (only ever w.r.t. q -- extra_inputs, if any, are
     passed through as additional non-differentiated arguments, e.g. a goal pose), for
     embedding both the value and its Jacobian into one hand-written fused kernel
-    translation unit (see crab_codegen.collision_kernel). Path A never needs a Jacobian -- nothing exposes a raw
+    translation unit (see crusty_codegen.collision_kernel). Path A never needs a Jacobian -- nothing exposes a raw
     Jacobian externally anymore, it's only ever consumed internally by a fused
     kernel's own control flow.
     """

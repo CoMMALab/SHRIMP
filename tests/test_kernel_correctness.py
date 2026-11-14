@@ -10,9 +10,9 @@ You run this yourself (see CLAUDE.md): `python -m tests.test_kernel_correctness`
 import numpy as np
 import symforce.symbolic as sf
 
-from crab_codegen.fixtures import load_panda_robot
+from crusty_codegen.fixtures import load_panda_robot
 from crusty_kinematics.derived import forward_kinematics_spheres, q_to_ee_pose
-from crab_jit import build_simple_jit_function, build_fused_collision_kernel
+from crusty_jit import build_simple_jit_function, build_fused_collision_kernel
 
 
 def symbolic_reference(robot, symbolic_fn, q_vals) -> np.ndarray:

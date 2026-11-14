@@ -3,9 +3,9 @@ functions. Codegen, extern "C" wrapping, JIT compiling, and binding in a single 
 instead of hand-writing a new template/builder/export for every new function (see
 JIT_ARCHITECTURE.md).
 
-Not used for the fused collision kernel (Path B, crab_codegen.collision_kernel) --
+Not used for the fused collision kernel (Path B, crusty_codegen.collision_kernel) --
 that has a genuinely bespoke shape (hand-fused control flow across multiple generated
-functions). Both paths bind through the same crab_jit.binder.JitFunction, though, so
+functions). Both paths bind through the same crusty_jit.binder.JitFunction, though, so
 there's exactly one binding mechanism either way.
 
 Usage (single input, q):
@@ -30,9 +30,9 @@ Usage (extra runtime inputs beyond q):
 
 from typing import Callable, Optional
 
-from crab_codegen.codegen import build_and_generate_function
-from crab_codegen.fixtures import load_panda_robot
-from crab_codegen.jit_wrapper import generate_value_wrapper
+from crusty_codegen.codegen import build_and_generate_function
+from crusty_codegen.fixtures import load_panda_robot
+from crusty_codegen.jit_wrapper import generate_value_wrapper
 
 from .binder import JitFunction, bind_jit_function
 from .engine import CrabJitEngine
@@ -46,7 +46,7 @@ def build_simple_jit_function(robot=None,
                                module_id: Optional[str] = None) -> JitFunction:
     """symbolic_fn(robot, q, *extra_values) -> sf.Matrix (a flat column vector).
     extra_inputs declares any inputs beyond q as (name, size) pairs -- see
-    crab_codegen.codegen.build_and_generate_function. Everything else --
+    crusty_codegen.codegen.build_and_generate_function. Everything else --
     Codegen.function, reading back SymForce's real emitted symbol name, the extern "C"
     wrapper, compiling at -O3, and the ctypes binding -- is automatic regardless of
     how many inputs there are."""

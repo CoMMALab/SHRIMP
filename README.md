@@ -25,7 +25,7 @@ python -m benchmarks.bench_kernels
 ## Layout
 
 - `crusty_model/`, `crusty_io/`, `crusty_kinematics/`: robot description, URDF loading, symbolic FK.
-- `crab_codegen/`: SymForce to C++ source.
-- `crab_jit/`: JIT engine and Python binder.
+- `crusty_codegen/`: SymForce to C++ source.
+- `crusty_jit/`: JIT engine and Python binder.
 - `crusty_compilations/`: Clang/ORC JIT (C++).
 - `robots/panda/`: spherized Panda URDF, SRDF, meshes (for visualization).

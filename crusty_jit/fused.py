@@ -1,7 +1,7 @@
 """Builds and calls Path B's fully-fused per-robot collision kernel (FK + collision
 loop + cost/gradient, all inlined into one -O3 compile -- see
-crab_codegen.collision_kernel). FusedCollisionKernel is a thin, purely-for-ergonomics
-wrapper over three crab_jit.binder.JitFunctions -- there's no bespoke ctypes signature
+crusty_codegen.collision_kernel). FusedCollisionKernel is a thin, purely-for-ergonomics
+wrapper over three crusty_jit.binder.JitFunctions -- there's no bespoke ctypes signature
 code here; binding is identical to Path A's.
 """
 
@@ -9,8 +9,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from crab_codegen.collision_kernel import build_fused_kernel_source, FK_IS_FREE, FK_COST, FK_COST_GRAD
-from crab_codegen.fixtures import load_panda_robot
+from crusty_codegen.collision_kernel import build_fused_kernel_source, FK_IS_FREE, FK_COST, FK_COST_GRAD
+from crusty_codegen.fixtures import load_panda_robot
 
 from .binder import bind_jit_function
 from .engine import CrabJitEngine

@@ -1,7 +1,7 @@
 """Symbolic quantities derived from forward kinematics -- plain
 `(robot, q, *extra_inputs) -> sf.Matrix` math, no codegen/JIT-specific code. Meant to
-be handed as symbolic_fn to crab_jit.simple.build_simple_jit_function (Path A) or
-pasted into a hand-fused kernel (Path B, crab_codegen.collision_kernel).
+be handed as symbolic_fn to crusty_jit.simple.build_simple_jit_function (Path A) or
+pasted into a hand-fused kernel (Path B, crusty_codegen.collision_kernel).
 """
 
 import symforce.symbolic as sf
@@ -12,7 +12,7 @@ from crusty_kinematics.fk import forward_kinematics, q_to_eeposes
 
 def forward_kinematics_spheres(robot: Robot, q) -> sf.Matrix:
     """q -> flat [x, y, z, radius] per collision sphere, in
-    crab_codegen.sphere_order's canonical ordering (same ordering
+    crusty_codegen.sphere_order's canonical ordering (same ordering
     forward_kinematics already produces)."""
     primitive_xyzr, _ = forward_kinematics(robot, q)
     flat_xyzr = []

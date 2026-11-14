@@ -10,9 +10,9 @@ import time
 
 import numpy as np
 
-from crab_codegen.fixtures import load_panda_robot
+from crusty_codegen.fixtures import load_panda_robot
 from crusty_kinematics.derived import forward_kinematics_spheres, task_space_distance, q_to_ee_pose
-from crab_jit import build_simple_jit_function, build_fused_collision_kernel
+from crusty_jit import build_simple_jit_function, build_fused_collision_kernel
 
 import symforce.symbolic as sf
 from .python_timer import time_call

@@ -9,7 +9,7 @@ list(APPEND CMAKE_PREFIX_PATH "${LLVM_DIR}")
 find_package(Clang REQUIRED CONFIG)
 
 # --------------------------------------------------------------------
-# Find Eigen3 -- JIT'd sources (crab_codegen's SymForce output, the fused
+# Find Eigen3 -- JIT'd sources (crusty_codegen's SymForce output, the fused
 # collision kernel) #include <Eigen/Dense>, so the Clang driver invocation in
 # crab_jit_capi.cc needs Eigen's include dir passed as -isystem at compile time.
 # --------------------------------------------------------------------
