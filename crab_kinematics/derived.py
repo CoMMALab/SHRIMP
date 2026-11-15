@@ -47,17 +47,19 @@ def q_to_ee_position_jacobian(robot: Robot, q) -> sf.Matrix:
     return sf.Matrix(jac.to_flat_list())
 
 
-def q_to_ee_position_jacobian_analytic(robot: Robot, q) -> sf.Matrix:
-    """Same quantity as q_to_ee_position_jacobian, but the geometric formula instead of symbolic
-    differentiation: for each joint on the chain to the end effector, a revolute column is
-    (world axis) x (p_ee - joint origin) and a prismatic column is the world axis. The axis and
-    origin come from the joint's frame before its own rotation (parent pose * joint.origin), so
-    column j doesn't depend on q_j and reuses FK's intermediate terms (O(joints) work)."""
+def _ee_jacobian_columns(robot: Robot, q):
+    """Geometric Jacobian columns of robot.end_effectors[0], world-aligned: (linear, angular), each
+    a list of nq V3. For each joint on the chain to the end effector, a revolute column is
+    (world axis) x (p_ee - joint origin) linear and the world axis angular; a prismatic column is
+    the world axis linear and zero angular. The axis and origin come from the joint's frame before
+    its own rotation (parent pose * joint.origin), so column j doesn't depend on q_j and reuses
+    FK's intermediate terms (O(joints) work). Joints off the chain give zero columns."""
     _, link_poses = forward_kinematics(robot, q)
     ee = robot.end_effectors[0]
     p = link_poses[robot.link_name_to_index[ee]].t
 
-    columns = [sf.V3.zero() for _ in range(robot.nq)]
+    linear = [sf.V3.zero() for _ in range(robot.nq)]
+    angular = [sf.V3.zero() for _ in range(robot.nq)]
     link = robot.links[ee]
     while link.parent_joint is not None:
         joint = robot.joints[link.parent_joint]
@@ -65,11 +67,24 @@ def q_to_ee_position_jacobian_analytic(robot: Robot, q) -> sf.Matrix:
             pre = link_poses[robot.link_name_to_index[joint.parent]] * joint.origin
             axis = pre.R * joint.axis
             if joint.type == "revolute":
-                columns[joint.id] = axis.cross(p - pre.t)
+                linear[joint.id] = axis.cross(p - pre.t)
+                angular[joint.id] = axis
             elif joint.type == "prismatic":
-                columns[joint.id] = axis
+                linear[joint.id] = axis
             else:
                 raise ValueError(f"Unsupported joint type: {joint.type}")
         link = robot.links[joint.parent]
+    return linear, angular
 
-    return sf.Matrix([columns[j][i] for i in range(3) for j in range(robot.nq)])  # row-major 3 x nq
+
+def q_to_ee_position_jacobian_analytic(robot: Robot, q) -> sf.Matrix:
+    """Same quantity as q_to_ee_position_jacobian, but the geometric formula instead of symbolic
+    differentiation (see _ee_jacobian_columns). Flat row-major 3 x nq."""
+    linear, _ = _ee_jacobian_columns(robot, q)
+    return sf.Matrix([linear[j][i] for i in range(3) for j in range(robot.nq)])
+
+
+def q_to_ee_jacobian_analytic(robot: Robot, q) -> sf.Matrix:
+    """Flat row-major 6 x nq geometric Jacobian, rows (vx, vy, vz, wx, wy, wz) in the world frame."""
+    linear, angular = _ee_jacobian_columns(robot, q)
+    return sf.Matrix([cols[j][i] for cols in (linear, angular) for i in range(3) for j in range(robot.nq)])

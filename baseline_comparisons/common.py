@@ -82,6 +82,15 @@ ROBOTS = {
                 + tuple(f"left_arm/left_arm_{i}" for i in range(7))
                 + tuple(f"right_arm/right_arm_{i}" for i in range(7))),
     ),
+    # Baxter as VAMP defines it: 14 joints (left arm, then right arm), end effector right_gripper
+    "baxter": RobotSpec(
+        name="baxter",
+        urdf="robots/baxter/baxter_spherized.urdf",
+        base_link="base",
+        link="right_gripper",
+        extra_frames=("left_gripper",),
+        joints=tuple(f"{side}_{j}" for side in ("left", "right") for j in ("s0", "s1", "e0", "e1", "w0", "w1", "w2")),
+    ),
 }
 
 

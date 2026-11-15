@@ -4,3 +4,5 @@ __pycache__
 *.py[cod]
 *.so
 external/
+baseline_comparisons/caspar_gen/
+ik_benchmark/build/

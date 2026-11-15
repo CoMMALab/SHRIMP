@@ -7,6 +7,13 @@ import symforce.symbolic as sf
 
 from typing import List
 
+def _pose3(origin) -> sf.Pose3:
+    """Pose3 of a 4x4 `<origin>` matrix; yourdfpy gives None when the tag is absent (identity)."""
+    if origin is None:
+        return sf.Pose3()
+    return sf.Pose3(R=sf.Rot3.from_rotation_matrix(origin[:3, :3]), t=sf.V3(origin[:3, 3]))
+
+
 def load_urdf(path: str) -> yourdfpy.URDF:
     """Load a URDF file and return a yourdfpy.URDF object."""
     return yourdfpy.URDF.load(path)
@@ -21,7 +28,7 @@ def urdf_to_robot(urdf: yourdfpy.URDF, end_effectors: List[str] = None) -> Robot
         for collision in link.collisions:
             if collision.geometry.sphere:
                 collision_spheres.append(Sphere(
-                    pose = sf.Pose3(R = sf.Rot3.from_rotation_matrix(collision.origin[:3, :3]), t = sf.V3(collision.origin[:3, 3])),
+                    pose = _pose3(collision.origin),
                     radius = collision.geometry.sphere.radius,
                 ))
         robot.links[link.name] = Link(
@@ -53,8 +60,8 @@ def urdf_to_robot(urdf: yourdfpy.URDF, end_effectors: List[str] = None) -> Robot
             id=joint_id,
             parent=parent_name,
             child=child_name,
-            origin= sf.Pose3(R = sf.Rot3.from_rotation_matrix(joint.origin[:3, :3]), t = sf.V3(joint.origin[:3, 3])),
-            axis=sf.V3(joint.axis),
+            origin=_pose3(joint.origin),
+            axis=sf.V3(joint.axis if joint.axis is not None else [1.0, 0.0, 0.0]),
             type=joint.type,
             limits=(joint.limit.lower, joint.limit.upper) if joint.limit else None,
             velocity_limits=(joint.limit.velocity, -joint.limit.velocity) if joint.limit else None,
