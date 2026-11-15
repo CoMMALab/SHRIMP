@@ -47,74 +47,7 @@ COLL_W, COLL_MARGIN, DONE_GAP = 2500.0, 0.005, 0.001   # lmcoll: hinge weight, h
 WARPS = 4
 N_INNER = 10
 
-# ---- shared: the host program (times latency per target and a full batch) -------------------
-# TS = floats of target per problem (7 per tool); defined per build before this text.
-MAIN = r"""
-#include <algorithm>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <vector>
-
-int main(int argc, char** argv)
-{
-    // <mode> <P> <S> <seeds.f32> <targets.f32> <out.f32> <latency_ms.f32>
-    g_mode = argv[1];
-    const int P = atoi(argv[2]), S = atoi(argv[3]), K = 5;
-    std::vector<float> seeds((size_t)P * S * N), targets((size_t)P * TS), out((size_t)P * S * N), lat(P);
-    FILE* f = fopen(argv[4], "rb");
-    if (!f || fread(seeds.data(), sizeof(float), seeds.size(), f) != seeds.size()) return 1;
-    fclose(f);
-    f = fopen(argv[5], "rb");
-    if (!f || fread(targets.data(), sizeof(float), targets.size(), f) != targets.size()) return 1;
-    fclose(f);
-    float *ds, *dt, *dout;
-    cudaMalloc(&ds, seeds.size() * sizeof(float));
-    cudaMalloc(&dt, targets.size() * sizeof(float));
-    cudaMalloc(&dout, out.size() * sizeof(float));
-    cudaMemcpy(ds, seeds.data(), seeds.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(dt, targets.data(), targets.size() * sizeof(float), cudaMemcpyHostToDevice);
-
-    for (int i = 0; i < 2; ++i) launch(P * S, S, ds, dt, dout);
-    cudaDeviceSynchronize();
-    cudaEvent_t a, e;
-    cudaEventCreate(&a);
-    cudaEventCreate(&e);
-
-    std::vector<float> batch;
-    for (int rep = 0; rep < 5; ++rep) {
-        cudaEventRecord(a);
-        for (int k = 0; k < K; ++k) launch(P * S, S, ds, dt, dout);
-        cudaEventRecord(e);
-        cudaEventSynchronize(e);
-        float ms;
-        cudaEventElapsedTime(&ms, a, e);
-        batch.push_back(ms / K);
-    }
-    for (int p = 0; p < P; ++p) {  // one target (S seeds) per launch
-        cudaEventRecord(a);
-        for (int k = 0; k < K; ++k) launch(S, S, ds + (size_t)p * S * N, dt + (size_t)p * TS, dout + (size_t)p * S * N);
-        cudaEventRecord(e);
-        cudaEventSynchronize(e);
-        float ms;
-        cudaEventElapsedTime(&ms, a, e);
-        lat[p] = ms / K;
-    }
-    launch(P * S, S, ds, dt, dout);  // results from the full batch
-    cudaDeviceSynchronize();
-    if (cudaGetLastError() != cudaSuccess) return 2;
-    cudaMemcpy(out.data(), dout, out.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    f = fopen(argv[6], "wb");
-    fwrite(out.data(), sizeof(float), out.size(), f);
-    fclose(f);
-    f = fopen(argv[7], "wb");
-    fwrite(lat.data(), sizeof(float), lat.size(), f);
-    fclose(f);
-    std::nth_element(batch.begin(), batch.begin() + batch.size() / 2, batch.end());
-    printf("%.6f\n", batch[batch.size() / 2]);
-    return 0;
-}
-"""
+from cuda_host import MAIN  # noqa: E402  (shared host program: latency per target + one batch launch)
 
 # ---- LM: crocket's ik_lm_step inside an accept/reject loop (benchmarks/ik/crocket_ik.py) ----
 LM_LOOP = r"""
@@ -375,9 +308,30 @@ __global__ void k_multi(const float* __restrict__ seeds, const float* __restrict
     for (int i = 0; i < N; ++i) out[(size_t)b * N + i] = q[i];
 }
 
+// FK-only benchmark (mode "fk"): MAX_ITER x (geometry with Jacobian, then value) per thread, nothing else.
+__global__ void k_fk(const float* __restrict__ seeds, const float* __restrict__ targets,
+                     float* __restrict__ out, int n_seeds, int S)
+{
+    const int b = blockIdx.x * blockDim.x + threadIdx.x;
+    if (b >= n_seeds) return;
+    const float* tgt = targets + TS * (b / S);
+    float q[N], r0[M], rt[M], J[M * N];
+    for (int i = 0; i < N; ++i) q[i] = seeds[(size_t)b * N + i];
+    float acc = 0.f;
+    for (int it = 0; it < MAX_ITER; ++it) {
+        r::ik_geometry_thread<float>(q, tgt, nullptr, r0, J, nullptr, nullptr, nullptr, 1);
+        r::ik_geometry_value_thread<float>(q, tgt, nullptr, rt, nullptr, nullptr, 1);
+        for (int i = 0; i < M; ++i) acc += r0[i] + rt[i];                // consume EVERY output: no dead code
+        for (int i = 0; i < M * N; ++i) acc += J[i];
+        q[it % N] += 1e-6f * acc;
+    }
+    for (int i = 0; i < N; ++i) out[(size_t)b * N + i] = q[i];
+}
+
 void launch(int n, int S, const float* ds, const float* dt, float* dout)
 {
-    k_multi<<<(n + 63) / 64, 64>>>(ds, dt, dout, n, S);
+    if (!strcmp(g_mode, "fk")) k_fk<<<(n + 63) / 64, 64>>>(ds, dt, dout, n, S);
+    else k_multi<<<(n + 63) / 64, 64>>>(ds, dt, dout, n, S);
 }
 """
 
@@ -741,6 +695,8 @@ def main() -> None:
     parser.add_argument("--seeds", default="8,32,128")
     parser.add_argument("--max-iter", type=int, default=60)
     parser.add_argument("--set", default="", choices=("", "coll"), dest="tset")
+    parser.add_argument("--bench", choices=("", "fk"), default="",
+                        help="fk (lmmulti only): time max-iter x (pose + Jacobian) per seed, no solver; not saved")
     parser.add_argument("--warm", action="store_true", help="mbm: seed 0 of each target = the problem's start config")
     args = parser.parse_args()
 
@@ -776,6 +732,10 @@ def main() -> None:
         exe = build_multi(robot, tools, args.max_iter, args.chain, lo[to_crocket], hi[to_crocket])
         modes = ("thread",)
 
+    if args.bench == "fk":
+        if args.method != "lmmulti":
+            raise SystemExit("--bench fk is implemented for --method lmmulti")
+        modes = ("fk",)
     out_dir = problem.REPO / "ik_benchmark" / "results"
     out_dir.mkdir(exist_ok=True)
     rng = np.random.default_rng(1234)
@@ -792,6 +752,10 @@ def main() -> None:
                     [str(exe), mode, str(P), str(S), str(sp), str(tp), str(op), str(lp)], text=True))
                 q_all = np.fromfile(op, np.float32).reshape(P, S, len(joints))[..., to_ours]
                 latency_ms = np.fromfile(lp, np.float32)
+            if args.bench == "fk":                                # microbenchmark: print only, nothing saved
+                print(f"FK-only x{args.max_iter} (crocket ik_geometry, S={S}): latency median "
+                      f"{np.median(latency_ms):.3f} ms/target, batch {batch_ms / P * 1e3:.2f} us/target")
+                continue
             name = f"crocket_{args.method}_{mode}_{S}{'_warm' if args.warm else ''}"
             fname = f"{args.chain}_{name}{'_' + args.tset if args.tset else ''}"   # chains/sets don't overwrite each other
             np.savez(out_dir / f"{fname}.npz", q_all=q_all.astype(np.float64), seconds=latency_ms / 1e3,
