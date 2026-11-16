@@ -26,7 +26,6 @@ import symforce.symbolic as sf
 from crab_codegen.codegen import build_and_generate_function
 from crab_codegen.ik_kernel import device_source
 from crab_codegen.sphere_order import link_bounding_spheres
-from crab_kinematics.derived import forward_kinematics_spheres
 from crab_kinematics.fk import forward_kinematics
 
 WORLD = r"""
@@ -67,36 +66,72 @@ struct World {
 """
 
 GPU_FKCC = r"""
-constexpr int ENV_VOTE = 5;     // spheres between warp votes in the obstacle loop (~100+ instructions)
-constexpr int PAIR_VOTE = 16;    // self pairs between warp votes (~160 instructions)
+#ifdef SHRIMP_PROF       // -DSHRIMP_PROF: clock64 cycles per phase, summed over all warps (see rrtc_main.cuh)
+// g_prof: [0] FK  [1] obstacles  [2] self pairs  [3] fkcc calls (lane 0 of each warp call)
+//         [4] nearest  [5] edge_ok  [6] add_node  [7] block time  [8] blocks
+__device__ unsigned long long g_prof[16];
+__device__ __forceinline__ void prof_fk(long long a, long long b, long long c)
+{
+    if ((threadIdx.x & 31) == 0) {
+        atomicAdd(&g_prof[0], (unsigned long long)a);
+        atomicAdd(&g_prof[1], (unsigned long long)b);
+        atomicAdd(&g_prof[2], (unsigned long long)c);
+        atomicAdd(&g_prof[3], 1ull);
+    }
+}
+#define PT() clock64()
+#define PF(a, b, c) prof_fk(a, b, c)
+#else
+#define PT() 0ll
+#define PF(a, b, c)
+#endif
 
 // true = q is collision-free (self + obstacles). q is in the chain's joint order.
-// Called by the lanes of `lane_mask` TOGETHER (each with its own q), e.g. one edge's waypoints: after every
-// ENV_VOTE spheres / PAIR_VOTE pairs the lanes vote (__any_sync), and as soon as any lane has hit, ALL lanes
-// return false (an edge with one bad waypoint is bad). Spheres are tested from the LAST (distal) to the
-// first; pairs are stored most-distal first. A lane that has hit stops testing but keeps voting.
-// With a single-lane mask it is a plain per-config check.
+// Called by the lanes of `lane_mask` TOGETHER (each with its own q), e.g. one edge's waypoints: as soon as any
+// lane has hit, ALL lanes return false (an edge with one bad waypoint is bad). With a single-lane mask it is a
+// plain per-config check.
+// Broad phase after CRICKET/VAMP: every link has a bounding sphere (BR[g]; its world centre is o[NS * 4 + 3 g],
+// computed by the FK). A link's spheres are tested only if some lane's bounding sphere hits the environment
+// (a warp-uniform branch), and the sphere pairs of an allowed link pair only if some lane's two bounding spheres
+// overlap. Links are visited tip -> root, link pairs most distal first; the lanes vote (__any_sync) once per
+// link / link pair that was tested finely, and at that vote any hit ends the call.
 __device__ __noinline__ bool fkcc(const float* q, const World& w, unsigned lane_mask)
 {
+    const long long t0 = PT();
     Eigen::Matrix<float, NQ, 1> qf = Eigen::Matrix<float, NQ, 1>::Zero();
     for (int i = 0; i < N; ++i) qf[QI[i]] = q[i];
-    const Eigen::Matrix<float, NS * 4, 1> o = sym::@FK@<float>(qf);
+    const Eigen::Matrix<float, NS * 4 + NG * 3, 1> o = sym::@FK@<float>(qf);
+    const long long t1 = PT();
     bool hit = false;
-    for (int s = NS - 1; s >= 0; --s) {
-        if (!hit) hit = env_hit(o[4 * s], o[4 * s + 1], o[4 * s + 2], o[4 * s + 3], w);
-        if ((NS - 1 - s) % ENV_VOTE == ENV_VOTE - 1 && __any_sync(lane_mask, hit)) return false;
-    }
-    if (__any_sync(lane_mask, hit)) return false;
-    for (int k = 0; k < NPAIR; ++k) {
-        if (!hit) {
-            const int i = PI[k], j = PJ[k];
-            const float dx = o[4 * i] - o[4 * j], dy = o[4 * i + 1] - o[4 * j + 1], dz = o[4 * i + 2] - o[4 * j + 2];
-            const float rs = o[4 * i + 3] + o[4 * j + 3];
-            hit = dx * dx + dy * dy + dz * dz < rs * rs;
+    for (int g = NG - 1; g >= 0; --g) {
+        const float* b = &o[NS * 4 + 3 * g];
+        const bool near = env_hit(b[0], b[1], b[2], BR[g], w);
+        if (__any_sync(lane_mask, near)) {
+            if (near)
+                for (int s = GS[g + 1] - 1; s >= GS[g] && !hit; --s)
+                    hit = env_hit(o[4 * s], o[4 * s + 1], o[4 * s + 2], o[4 * s + 3], w);
+            if (__any_sync(lane_mask, hit)) { PF(t1 - t0, PT() - t1, 0); return false; }
         }
-        if (k % PAIR_VOTE == PAIR_VOTE - 1 && __any_sync(lane_mask, hit)) return false;
     }
-    return !hit;
+    const long long t2 = PT();
+    for (int k = 0; k < NLP; ++k) {
+        const float* a = &o[NS * 4 + 3 * LPA[k]];
+        const float* b = &o[NS * 4 + 3 * LPB[k]];
+        const float dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2], rb = BR[LPA[k]] + BR[LPB[k]];
+        const bool near = dx * dx + dy * dy + dz * dz < rb * rb;
+        if (__any_sync(lane_mask, near)) {
+            if (near)
+                for (int p = LPS[k]; p < LPS[k + 1] && !hit; ++p) {
+                    const int i = PI[p], j = PJ[p];
+                    const float ex = o[4 * i] - o[4 * j], ey = o[4 * i + 1] - o[4 * j + 1], ez = o[4 * i + 2] - o[4 * j + 2];
+                    const float rs = o[4 * i + 3] + o[4 * j + 3];
+                    hit = ex * ex + ey * ey + ez * ez < rs * rs;
+                }
+            if (__any_sync(lane_mask, hit)) { PF(t1 - t0, t2 - t1, PT() - t2); return false; }
+        }
+    }
+    PF(t1 - t0, t2 - t1, PT() - t2);
+    return true;
 }
 """
 
@@ -165,38 +200,29 @@ def _header(robot, q_index, lo, hi, pair_i, pair_j, gpu: bool) -> str:
     if gpu and len(pair_i) > 14000:
         raise ValueError(f"{len(pair_i)} self pairs do not fit in constant memory; move PI/PJ to global memory")
     arr = lambda xs, fmt="{:.9g}": "{" + ", ".join(fmt.format(x) for x in xs) + "}"  # noqa: E731
-    extra = ""
-    if gpu:
-        # most distal pairs first (the sphere order is root -> tip), so the pair loop meets likely hits early
-        order = sorted(range(len(pair_i)), key=lambda k: (max(pair_i[k], pair_j[k]), min(pair_i[k], pair_j[k])),
-                       reverse=True)
-        pair_i, pair_j = [pair_i[k] for k in order], [pair_j[k] for k in order]
-        g = build_and_generate_function(robot, forward_kinematics_spheres, "crab_spheres")
-        ns = g["n_out"] // 4
-    else:
-        # CPU: pairs grouped by allowed link pair (most distal first); one bounding-sphere test gates each group
-        bsph = link_bounding_spheres(robot)
-        ns = sum(b["count"] for b in bsph)
-        gof = [gi for gi, b in enumerate(bsph) for _ in range(b["count"])]
-        key = lambda k: (max(gof[pair_i[k]], gof[pair_j[k]]), min(gof[pair_i[k]], gof[pair_j[k]]),  # noqa: E731
-                         max(pair_i[k], pair_j[k]), min(pair_i[k], pair_j[k]))
-        order = sorted(range(len(pair_i)), key=key, reverse=True)
-        pair_i, pair_j = [pair_i[k] for k in order], [pair_j[k] for k in order]
-        lpa, lpb, lps = [], [], []
-        for p in range(len(pair_i)):
-            lp = (max(gof[pair_i[p]], gof[pair_j[p]]), min(gof[pair_i[p]], gof[pair_j[p]]))
-            if not lpa or (lpa[-1], lpb[-1]) != lp:
-                lpa.append(lp[0]); lpb.append(lp[1]); lps.append(p)
-        lps.append(len(pair_i))
-        g = build_and_generate_function(robot, _spheres_bounded, "crab_spheres_bs")
-        extra = (f"constexpr int NG = {len(bsph)};\nstatic const int GS[] = "
-                 f"{arr([b['first'] for b in bsph] + [ns], '{}')};\n"
-                 f"static const float BR[] = {arr([b['radius'] for b in bsph] or [0.0])};\n"
-                 f"constexpr int NLP = {len(lpa)};\n"
-                 f"static const int LPA[] = {arr(lpa or [0], '{}')};\nstatic const int LPB[] = {arr(lpb or [0], '{}')};\n"
-                 f"static const int LPS[] = {arr(lps, '{}')};\n")
-    npair = max(len(pair_i), 1)
     q = "__constant__" if gpu else "static const"
+    # Broad phase (CRICKET's scheme): one bounding sphere per link; the self pairs are grouped by allowed link
+    # pair, most distal pair first, and one bounding-sphere test gates each group
+    bsph = link_bounding_spheres(robot)
+    ns = sum(b["count"] for b in bsph)
+    gof = [gi for gi, b in enumerate(bsph) for _ in range(b["count"])]
+    key = lambda k: (max(gof[pair_i[k]], gof[pair_j[k]]), min(gof[pair_i[k]], gof[pair_j[k]]),  # noqa: E731
+                     max(pair_i[k], pair_j[k]), min(pair_i[k], pair_j[k]))
+    order = sorted(range(len(pair_i)), key=key, reverse=True)
+    pair_i, pair_j = [pair_i[k] for k in order], [pair_j[k] for k in order]
+    lpa, lpb, lps = [], [], []
+    for p in range(len(pair_i)):
+        lp = (max(gof[pair_i[p]], gof[pair_j[p]]), min(gof[pair_i[p]], gof[pair_j[p]]))
+        if not lpa or (lpa[-1], lpb[-1]) != lp:
+            lpa.append(lp[0]); lpb.append(lp[1]); lps.append(p)
+    lps.append(len(pair_i))
+    g = build_and_generate_function(robot, _spheres_bounded, "crab_spheres_bs")
+    extra = (f"constexpr int NG = {len(bsph)};\n{q} int GS[] = {arr([b['first'] for b in bsph] + [ns], '{}')};\n"
+             f"{q} float BR[] = {arr([b['radius'] for b in bsph] or [0.0])};\n"
+             f"constexpr int NLP = {len(lpa)};\n"
+             f"{q} int LPA[] = {arr(lpa or [0], '{}')};\n{q} int LPB[] = {arr(lpb or [0], '{}')};\n"
+             f"{q} int LPS[] = {arr(lps, '{}')};\n")
+    npair = max(len(pair_i), 1)
     consts = (f"\nconstexpr int N = {len(q_index)};\nconstexpr int NQ = {robot.nq};\n"
               f"constexpr int NS = {ns};\nconstexpr int NPAIR = {len(pair_i)};\n" + extra +
               f"{q} int QI[] = {arr(q_index, '{}')};\n"

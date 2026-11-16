@@ -63,6 +63,8 @@ def main() -> None:
     parser.add_argument("--validate", type=int, default=50, help="solved paths re-checked in float64")
     parser.add_argument("--res", type=float, default=0.05, help="validation resolution (rad)")
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--profile", action="store_true",
+                        help="print cycles per phase (FK / obstacles / self pairs; nearest / edge_ok / add_node)")
     args = parser.parse_args()
 
     from cuda_host import compile_cu
@@ -75,8 +77,9 @@ def main() -> None:
     checker = problem.SelfCollision(fk)
 
     eigen = os.environ.get("EIGEN3_INCLUDE_DIR", "/usr/include/eigen3")
-    exe = compile_cu(build(args.chain, lo, hi, checker), f"crab_rrtc_{args.chain}", problem.REPO / "ik_benchmark" / "build",
-                     flags=("--expt-relaxed-constexpr", f"-I{eigen}"))
+    exe = compile_cu(build(args.chain, lo, hi, checker), f"crab_rrtc_{args.chain}{'_prof' if args.profile else ''}",
+                     problem.REPO / "ik_benchmark" / "build",
+                     flags=("--expt-relaxed-constexpr", f"-I{eigen}", *(("-DSHRIMP_PROF",) if args.profile else ())))
 
     starts, goals = t["start"][:P], t["q_star"][:P]
     MS, MB, MC = t["sph"].shape[1], t["box"].shape[1], t["cap"].shape[1]

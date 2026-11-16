@@ -100,8 +100,25 @@ int main(int argc, char** argv)
         cudaEventSynchronize(e1);
         cudaEventElapsedTime(&lat[i], e0, e1);
     }
+#ifdef SHRIMP_PROF
+    { unsigned long long z[16] = {}; cudaMemcpyToSymbol(g_prof, z, sizeof z); }
+#endif
     run(P, 0);                                       // results from the full batch
     cudaDeviceSynchronize();
+#ifdef SHRIMP_PROF
+    {
+        unsigned long long h[16];
+        cudaMemcpyFromSymbol(h, g_prof, sizeof h);
+        const double calls = (double)h[3], fk = (double)(h[0] + h[1] + h[2]), bt = (double)h[7];
+        fprintf(stderr, "profile (clock64 cycles of one warp; elapsed time, includes waiting for other warps)\n"
+                "  fkcc per edge check (%.0f checks): FK %.0f (%.0f%%)  obstacles %.0f (%.0f%%)  self pairs %.0f (%.0f%%)  "
+                "total %.0f\n", calls, h[0] / calls, 100 * h[0] / fk, h[1] / calls, 100 * h[1] / fk, h[2] / calls,
+                100 * h[2] / fk, fk / calls);
+        fprintf(stderr, "  per block (%llu blocks, %.0f cycles): nearest %.0f%%  edge_ok %.0f%%  add_node %.0f%%  "
+                "other %.0f%%\n", h[8], bt / h[8], 100 * h[4] / bt, 100 * h[5] / bt, 100 * h[6] / bt,
+                100 * (bt - h[4] - h[5] - h[6]) / bt);
+    }
+#endif
     if (cudaGetLastError() != cudaSuccess) { fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(cudaGetLastError())); return 2; }
 
     std::vector<PState> st(P);

@@ -156,6 +156,14 @@ k_rrtc(const float* env, const int* env_n, float* nodes, int* parents, int* read
     __shared__ float cfg[N], near_cfg[N], stepv[N], vecs[N], sd[NT / 32];
     __shared__ int si[NT / 32], s_t, s_idx, s_stop, s_cnt, prime_order[16];
 
+#ifdef SHRIMP_PROF       // cycles in nearest / edge_ok / add_node and in the whole block (flushed at exit)
+    long long pc[3] = {0, 0, 0};
+    const long long pstart = clock64();
+#define PROF(k, ...) { const long long pt_ = clock64(); __VA_ARGS__; pc[k] += clock64() - pt_; }
+#else
+#define PROF(k, ...) __VA_ARGS__
+#endif
+
     // per-block Halton: block 0 uses the primes in order, the others a random permutation of them
     if (tid == 0) {
         for (int i = 0; i < 16; ++i) prime_order[i] = i;
@@ -186,7 +194,18 @@ k_rrtc(const float* env, const int* env_n, float* nodes, int* parents, int* read
             else s_t = ratio < TREE_RATIO ? 0 : 1;
         }
         __syncthreads();
-        if (s_stop) return;
+        if (s_stop) {
+#ifdef SHRIMP_PROF
+            if (tid == 0) {
+                atomicAdd(&g_prof[4], (unsigned long long)pc[0]);
+                atomicAdd(&g_prof[5], (unsigned long long)pc[1]);
+                atomicAdd(&g_prof[6], (unsigned long long)pc[2]);
+                atomicAdd(&g_prof[7], (unsigned long long)(clock64() - pstart));
+                atomicAdd(&g_prof[8], 1ull);
+            }
+#endif
+            return;
+        }
         const int t = s_t, o = 1 - t;
 
         // Direct attempt (VAMP RRTC's first move, as prrax): block 0's first iteration skips sampling and
@@ -201,7 +220,7 @@ k_rrtc(const float* env, const int* env_n, float* nodes, int* parents, int* read
             if (tid < N) cfg[tid] = LO[tid] + halton(it, PRIMES[prime_order[tid]]) * (HI[tid] - LO[tid]);
             if (tid == 0) s_cnt = min(*(volatile int*)&S->cnt[t], prm.max_samples);
             __syncthreads();
-            nearest(nd[t], rdy[t], s_cnt, cfg, prm.epoch, sd, si, bd, bi);
+            PROF(0, nearest(nd[t], rdy[t], s_cnt, cfg, prm.epoch, sd, si, bd, bi));
             if (tid < N) near_cfg[tid] = __ldcg(&nd[t][(size_t)bi * N + tid]);
             __syncthreads();
             const float dist = sqrtf(bd);
@@ -212,8 +231,11 @@ k_rrtc(const float* env, const int* env_n, float* nodes, int* parents, int* read
                 stepv[tid] = cfg[tid] - near_cfg[tid];                  // the edge vector
             }
             __syncthreads();
-            if (!edge_ok(near_cfg, stepv, w)) continue;
-            if (!add_node(S, t, nd[t], par[t], rdy[t], cfg, bi, prm, &s_idx, cur)) continue;
+            bool ok1, ok2;
+            PROF(1, ok1 = edge_ok(near_cfg, stepv, w));
+            if (!ok1) continue;
+            PROF(2, ok2 = add_node(S, t, nd[t], par[t], rdy[t], cfg, bi, prm, &s_idx, cur));
+            if (!ok2) continue;
         }
 
         // connect: walk toward the nearest node of the other tree (the goal root for the direct attempt)
@@ -221,7 +243,7 @@ k_rrtc(const float* env, const int* env_n, float* nodes, int* parents, int* read
         if (!direct) {
             if (tid == 0) s_cnt = min(*(volatile int*)&S->cnt[o], prm.max_samples);
             __syncthreads();
-            nearest(nd[o], rdy[o], s_cnt, cfg, prm.epoch, sd, si, bd, bi);
+            PROF(0, nearest(nd[o], rdy[o], s_cnt, cfg, prm.epoch, sd, si, bd, bi));
         }
         const int on = direct ? 0 : bi;
         if (tid < N) near_cfg[tid] = __ldcg(&nd[o][(size_t)on * N + tid]);   // the target
@@ -236,10 +258,13 @@ k_rrtc(const float* env, const int* env_n, float* nodes, int* parents, int* read
         __syncthreads();
         bool connected = true;
         for (int e = 0; e < hops; ++e) {
-            if (!edge_ok(cfg, stepv, w)) { connected = false; break; }
+            bool ok1, ok2;
+            PROF(1, ok1 = edge_ok(cfg, stepv, w));
+            if (!ok1) { connected = false; break; }
             if (tid < N) cfg[tid] += vecs[tid];
             int ni;
-            if (!add_node(S, t, nd[t], par[t], rdy[t], cfg, cur, prm, &s_idx, ni)) { connected = false; break; }
+            PROF(2, ok2 = add_node(S, t, nd[t], par[t], rdy[t], cfg, cur, prm, &s_idx, ni));
+            if (!ok2) { connected = false; break; }
             cur = ni;
         }
         if (connected && tid == 0 && atomicCAS(&S->solved, 0, 1) == 0) {
