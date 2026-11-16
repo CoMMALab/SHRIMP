@@ -21,18 +21,20 @@ import numpy as np  # noqa: E402
 import problem  # noqa: E402
 
 
-def build(chain: str, lo, hi, checker):
+def build(chain: str, lo, hi, checker, cpu: bool = False, interleave: bool = False):
     import crab_model  # noqa: F401
-    from crab_codegen.robot_header import build_robot_header
+    from crab_codegen.robot_header import build_cpu_robot_header, build_robot_header
     from crab_io.urdf import load_urdf, urdf_to_robot
-    from shrimp.rrtc import build_rrtc_source
+    from shrimp.rrtc import build_cpu_rrtc_source, build_rrtc_source
 
     c = problem.CHAINS[chain]
     urdf = load_urdf(str(problem.common.ROBOTS[c.robot].urdf_path))
     robot = urdf_to_robot(urdf, [c.tools[0]]).finalize()
     q_index = [robot.joints[n].id for n in c.joints]
-    header = build_robot_header(robot, q_index, lo, hi, checker.pair_i.tolist(), checker.pair_j.tolist())
-    return build_rrtc_source(header)
+    args = (robot, q_index, lo, hi, checker.pair_i.tolist(), checker.pair_j.tolist())
+    if cpu:
+        return build_cpu_rrtc_source(build_cpu_robot_header(*args, interleave=interleave))
+    return build_rrtc_source(build_robot_header(*args))
 
 
 def valid_path(path, start, goal, lo, hi, checker, obs, res: float) -> str:

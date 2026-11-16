@@ -86,6 +86,21 @@ def compile_cu(src: str, stem: str, build_dir, flags=()):
     return exe
 
 
+def compile_cpp(src: str, stem: str, build_dir, flags=()):
+    """Write `src` to build_dir/<stem>.cpp and g++ it (skipped if the source is unchanged)."""
+    import subprocess
+    from pathlib import Path
+
+    build_dir = Path(build_dir)
+    build_dir.mkdir(parents=True, exist_ok=True)
+    cpp, exe = build_dir / f"{stem}.cpp", build_dir / stem
+    if not exe.exists() or not cpp.exists() or cpp.read_text() != src:
+        cpp.write_text(src)
+        subprocess.check_call(["g++", "-O3", "-march=native", "-std=c++17", "-pthread", *flags, str(cpp), "-o",
+                               str(exe)])
+    return exe
+
+
 def run_exe(exe, mode: str, seeds, targets):
     """Run a compiled MAIN. seeds (P, S, dof), targets (P, TS) float32 -> (q (P, S, dof) float64,
     latency_ms per target, batch_ms for all targets in one launch)."""
