@@ -9,7 +9,7 @@ float64 FK, so the pose is reachable AND reachable collision-free (checked here 
 and the obstacles; problems whose goal fails this checker are dropped and counted). A solution is any
 in-limit q reaching the pose without colliding (report.py judges; solvers don't see obstacles yet).
 Obstacles follow vamp.problem_dict_to_vamp: spheres; boxes (R = Rz(phi) Ry(theta) Rx(rho) from
-orientation_euler_xyz); cylinders are CAPSULES (segment p1-p2 swept by the radius), except in the `box`
+orientation_euler_xyz); cylinders are CAPSULES (segment p1-p2 swept by the radius; VAMP's "cylinder" is this capsule), except in the `box`
 family where they become boxes with half extents [r, r, length / 2]. Categories = MBM families.
 `start` (the problem's start configuration) is saved too, for warm-start solves (--warm).
 """

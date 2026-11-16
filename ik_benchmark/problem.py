@@ -130,7 +130,7 @@ def target_path(chain: str, tset: str = "") -> Path:
 def obstacles_of(t, i: int):
     """Problem i's world obstacles from a targets file, or None when the file has none (MBM files do):
     {"sph": (k, 4) [x y z r], "box": (k, 15) [center, R row-major, half extents],
-     "cap": (k, 7) [p1, p2, r]} (capsule = segment p1-p2 swept by r)."""
+     "cap": (k, 7) [p1, p2, r]} (capsule = segment p1-p2 swept by r; VAMP's "cylinder" is this capsule)."""
     if "n_sph" not in t.files:
         return None
     return {"sph": t["sph"][i, :t["n_sph"][i]], "box": t["box"][i, :t["n_box"][i]],

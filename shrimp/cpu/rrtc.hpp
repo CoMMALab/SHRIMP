@@ -117,6 +117,7 @@ static Result plan(const float* start, const float* goal, const World& w, const 
     T[1].add(goal, 0);
     const unsigned skip = prm.seed * 9973u;
     Result r{0, 0, 0};
+    int ta = 1;                                              // growing tree (first swap makes it the start tree)
     for (int it = 1; it <= prm.max_iters; ++it) {
         r.iters = it;
         float cfg[N];
@@ -125,8 +126,10 @@ static Result plan(const float* start, const float* goal, const World& w, const 
             t = 0; o = 1; on = 0;
             for (int k = 0; k < N; ++k) cfg[k] = start[k];
         } else {
-            const int c0 = T[0].size(), c1 = T[1].size();
-            t = c0 < c1 ? 0 : c1 < c0 ? 1 : (it & 1);
+            // VAMP's balance rule: swap the growing tree unless it is under half the size of the other
+            const float sa = (float)T[ta].size(), sb = (float)T[1 - ta].size();
+            if (std::fabs(sa - sb) / sa < 1.f) ta = 1 - ta;
+            t = ta;
             o = 1 - t;
             for (int k = 0; k < N; ++k) cfg[k] = LO[k] + halton(skip + it, PRIMES[k]) * (HI[k] - LO[k]);
             const int nb = nearest(T[t], cfg);

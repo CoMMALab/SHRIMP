@@ -10,7 +10,7 @@ chain-form generator behind the same `fkcc`):
     struct World                     one problem's obstacles, read-only views into device memory:
                                        sph[ns][4]  x y z r
                                        box[nb][15] center(3), R row-major(9) (world-from-box), half extents(3)
-                                       cap[nc][7]  p1(3), p2(3), r      (segment p1-p2 swept by r)
+                                       cap[nc][7]  p1(3), p2(3), r      (segment p1-p2 swept by r; VAMP's "cylinder" is this capsule)
     bool fkcc(const float* q, const World& w, unsigned lane_mask)
                                      true = q (chain order, radians) is collision-free: self-collision
                                      (SRDF-disabled and rigidly attached link pairs excluded) and obstacles.
