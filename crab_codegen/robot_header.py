@@ -11,9 +11,11 @@ chain-form generator behind the same `fkcc`):
                                        sph[ns][4]  x y z r
                                        box[nb][15] center(3), R row-major(9) (world-from-box), half extents(3)
                                        cap[nc][7]  p1(3), p2(3), r      (segment p1-p2 swept by r)
-    bool fkcc(const float* q, const World& w)
+    bool fkcc(const float* q, const World& w, unsigned lane_mask)
                                      true = q (chain order, radians) is collision-free: self-collision
-                                     (SRDF-disabled and rigidly attached link pairs excluded) and obstacles
+                                     (SRDF-disabled and rigidly attached link pairs excluded) and obstacles.
+                                     The lanes of lane_mask call it together; any lane's hit makes all return
+                                     false (warp-wide early exit, see fkcc's comment)
 
 Everything is float32; compile with: nvcc -O3 -std=c++17 --expt-relaxed-constexpr -I<eigen3>.
 """
@@ -60,21 +62,36 @@ __device__ __forceinline__ bool env_hit(float x, float y, float z, float r, cons
     return false;
 }
 
+constexpr int ENV_VOTE = 5;      // spheres between warp votes in the obstacle loop (~100+ instructions)
+constexpr int PAIR_VOTE = 16;    // self pairs between warp votes (~160 instructions)
+
 // true = q is collision-free (self + obstacles). q is in the chain's joint order.
-__device__ __noinline__ bool fkcc(const float* q, const World& w)
+// Called by the lanes of `lane_mask` TOGETHER (each with its own q), e.g. one edge's waypoints: after every
+// ENV_VOTE spheres / PAIR_VOTE pairs the lanes vote (__any_sync), and as soon as any lane has hit, ALL lanes
+// return false (an edge with one bad waypoint is bad). Spheres are tested from the LAST (distal) to the
+// first; pairs are stored most-distal first. A lane that has hit stops testing but keeps voting.
+// With a single-lane mask it is a plain per-config check.
+__device__ __noinline__ bool fkcc(const float* q, const World& w, unsigned lane_mask)
 {
     Eigen::Matrix<float, NQ, 1> qf = Eigen::Matrix<float, NQ, 1>::Zero();
     for (int i = 0; i < N; ++i) qf[QI[i]] = q[i];
     const Eigen::Matrix<float, NS * 4, 1> o = sym::@FK@<float>(qf);
-    for (int s = 0; s < NS; ++s)
-        if (env_hit(o[4 * s], o[4 * s + 1], o[4 * s + 2], o[4 * s + 3], w)) return false;
-    for (int k = 0; k < NPAIR; ++k) {
-        const int i = PI[k], j = PJ[k];
-        const float dx = o[4 * i] - o[4 * j], dy = o[4 * i + 1] - o[4 * j + 1], dz = o[4 * i + 2] - o[4 * j + 2];
-        const float rs = o[4 * i + 3] + o[4 * j + 3];
-        if (dx * dx + dy * dy + dz * dz < rs * rs) return false;
+    bool hit = false;
+    for (int s = NS - 1; s >= 0; --s) {
+        if (!hit) hit = env_hit(o[4 * s], o[4 * s + 1], o[4 * s + 2], o[4 * s + 3], w);
+        if ((NS - 1 - s) % ENV_VOTE == ENV_VOTE - 1 && __any_sync(lane_mask, hit)) return false;
     }
-    return true;
+    if (__any_sync(lane_mask, hit)) return false;
+    for (int k = 0; k < NPAIR; ++k) {
+        if (!hit) {
+            const int i = PI[k], j = PJ[k];
+            const float dx = o[4 * i] - o[4 * j], dy = o[4 * i + 1] - o[4 * j + 1], dz = o[4 * i + 2] - o[4 * j + 2];
+            const float rs = o[4 * i + 3] + o[4 * j + 3];
+            hit = dx * dx + dy * dy + dz * dz < rs * rs;
+        }
+        if (k % PAIR_VOTE == PAIR_VOTE - 1 && __any_sync(lane_mask, hit)) return false;
+    }
+    return !hit;
 }
 """
 
@@ -84,6 +101,10 @@ def build_robot_header(robot, q_index, lo: np.ndarray, hi: np.ndarray, pair_i, p
     pair_i/pair_j: self-collision sphere pairs (indices in crab_codegen.sphere_order's order)."""
     if len(pair_i) > 14000:
         raise ValueError(f"{len(pair_i)} self pairs do not fit in constant memory; move PI/PJ to global memory")
+    # most distal pairs first (the sphere order is root -> tip), so the pair loop meets likely hits early
+    order = sorted(range(len(pair_i)), key=lambda k: (max(pair_i[k], pair_j[k]), min(pair_i[k], pair_j[k])),
+                   reverse=True)
+    pair_i, pair_j = [pair_i[k] for k in order], [pair_j[k] for k in order]
     g = build_and_generate_function(robot, forward_kinematics_spheres, "crab_spheres")
     arr = lambda xs, fmt="{:.9g}": "{" + ", ".join(fmt.format(x) for x in xs) + "}"  # noqa: E731
     npair = max(len(pair_i), 1)

@@ -56,7 +56,8 @@ __device__ bool edge_ok(const float* from, const float* delta, const World& w)
         float q[N];
         const float a = (threadIdx.x + 1) / (float)n;
         for (int k = 0; k < N; ++k) q[k] = from[k] + a * delta[k];
-        ok = fkcc(q, w);
+        const unsigned mask = n >= 32 ? 0xffffffffu : ((1u << n) - 1u);     // the lanes checking this edge
+        ok = fkcc(q, w, mask);
     }
     return __syncthreads_and(ok);
 }
