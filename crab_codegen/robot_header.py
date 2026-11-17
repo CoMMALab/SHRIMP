@@ -33,16 +33,27 @@ struct World {
     const float* sph; int ns;
     const float* box; int nb;
     const float* cap; int nc;
+#ifdef SHRIMP_ENV_SORTED   // each list sorted by distance from the origin (VAMP's min_distance), nearest first
+    const float *smin, *bmin, *cmin;     // per obstacle: lower bound on its distance from the origin
+#endif
 };
 
 @FN@ bool env_hit(float x, float y, float z, float r, const World& w)
 {
+#ifdef SHRIMP_ENV_SORTED   // a sphere of radius r at c reaches at most |c| + r from the origin: later obstacles are out
+    const float ext = sqrtf(x * x + y * y + z * z) + r;
+#define ENV_CUT(arr, i) if (w.arr[i] >= ext) break;
+#else
+#define ENV_CUT(arr, i)
+#endif
     for (int i = 0; i < w.ns; ++i) {
+        ENV_CUT(smin, i)
         const float* s = w.sph + 4 * i;
         const float dx = x - s[0], dy = y - s[1], dz = z - s[2], rr = r + s[3];
         if (dx * dx + dy * dy + dz * dz < rr * rr) return true;
     }
     for (int i = 0; i < w.nb; ++i) {
+        ENV_CUT(bmin, i)
         const float* b = w.box + 15 * i;
         const float dx = x - b[0], dy = y - b[1], dz = z - b[2];
         const float lx = dx * b[3] + dy * b[6] + dz * b[9];             // R^T (c - p), R row-major
@@ -53,6 +64,7 @@ struct World {
         if (ox * ox + oy * oy + oz * oz < r * r) return true;
     }
     for (int i = 0; i < w.nc; ++i) {
+        ENV_CUT(cmin, i)
         const float* c = w.cap + 7 * i;
         const float sx = c[3] - c[0], sy = c[4] - c[1], sz = c[5] - c[2];
         const float len2 = fmaxf(sx * sx + sy * sy + sz * sz, 1e-12f);

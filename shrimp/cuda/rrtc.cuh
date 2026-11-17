@@ -136,7 +136,7 @@ __global__ void k_init(const float* starts, const float* goals, float* nodes, in
 }
 
 __global__ void __launch_bounds__(NT)
-k_rrtc(const float* env, const int* env_n, float* nodes, int* parents, int* ready, PState* st, float* path,
+k_rrtc(const float* env, const float* dmin, const int* env_n, float* nodes, int* parents, int* ready, PState* st, float* path,
        int* path_len, Params prm)
 {
     const int tid = threadIdx.x;
@@ -150,6 +150,7 @@ k_rrtc(const float* env, const int* env_n, float* nodes, int* parents, int* read
     w.sph = env + (size_t)p * (prm.MS * 4 + prm.MB * 15 + prm.MC * 7);
     w.box = w.sph + prm.MS * 4;
     w.cap = w.box + prm.MB * 15;
+    w.smin = dmin; w.bmin = dmin + prm.MS; w.cmin = dmin + prm.MS + prm.MB;
     w.ns = env_n[3 * p]; w.nb = env_n[3 * p + 1]; w.nc = env_n[3 * p + 2];
     const unsigned rs = prm.seed ^ ((unsigned)(prm.p0 + p) * 0x9E3779B1u) ^ ((unsigned)bl * 0x85EBCA6Bu);
 
@@ -186,11 +187,11 @@ k_rrtc(const float* env, const int* env_n, float* nodes, int* parents, int* read
             const int c0 = min(*(volatile int*)&S->cnt[0], prm.max_samples);
             const int c1 = min(*(volatile int*)&S->cnt[1], prm.max_samples);
             // tree balancing (pRRTC mode 1): first iteration split the blocks in half; while the trees are
-            // within 1.5 x blocks of each other split the blocks by the size ratio; otherwise every block
+            // within 1.25 x blocks of each other split the blocks by the size ratio; otherwise every block
             // grows the smaller tree (ratio = tree 0's share of all nodes; < TREE_RATIO -> grow tree 0)
             const float ratio = c0 / (float)(c0 + c1);
             if (it == 1) s_t = bl < prm.B / 2 ? 0 : 1;
-            else if (abs(c0 - c1) < 1.5f * prm.B) s_t = bl < prm.B * (1.f - ratio) ? 0 : 1;
+            else if (abs(c0 - c1) < 1.25f * prm.B) s_t = bl < prm.B * (1.f - ratio) ? 0 : 1;
             else s_t = ratio < TREE_RATIO ? 0 : 1;
         }
         __syncthreads();

@@ -44,6 +44,7 @@ def main() -> None:
                     help="print cycles per config check split into FK / obstacles / self pairs "
                          "(not with --interleave)")
     ap.add_argument("--epsilon", type=float, default=0.0, help="NN approximation: within (1+eps) of the nearest")
+    ap.add_argument("--brute", action="store_true", help="linear-scan nearest instead of the kd-tree (check)")
     ap.add_argument("--weights", default="-", help="per-joint NN metric weights 'w0,w1,...' (chain order); - = ones")
     ap.add_argument("--validate", type=int, default=50, help="solved paths re-checked in float64")
     ap.add_argument("--res", type=float, default=0.05, help="validation resolution (rad)")
@@ -96,7 +97,7 @@ def main() -> None:
         np.ascontiguousarray(env_n, np.int32).tofile(f["env_n"])
         out = subprocess.check_output(
             [str(exe), str(n), str(args.threads), str(args.max_iters), str(args.max_samples), str(args.range),
-             str(args.seed), str(args.epsilon), args.weights, str(MS), str(MB), str(MC), *(str(f[k]) for k in
+             str(args.seed), str(args.epsilon), str(int(args.brute)), args.weights, str(MS), str(MB), str(MC), *(str(f[k]) for k in
              ("starts", "goals", "env", "env_n", "path", "len", "stat", "ms"))], text=True)
         wall_ms = float(out)
         path = np.fromfile(f["path"], np.float32).reshape(n, MAXP, dof)

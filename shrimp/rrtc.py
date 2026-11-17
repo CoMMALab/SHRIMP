@@ -19,14 +19,16 @@ CPU = Path(__file__).parent / "cpu"
 def build_cpu_rrtc_source(cpu_robot_header: str, with_main: bool = True) -> str:
     """CPU RRT-Connect (cpu/rrtc.hpp) on crab_codegen.robot_header.build_cpu_robot_header's output.
     Compile with: g++ -O3 -march=native -std=c++17 -pthread -I<eigen3> (ik_benchmark/cuda_host.compile_cpp)."""
-    parts = [cpu_robot_header, (CPU / "kdtree.hpp").read_text(), (CPU / "rrtc.hpp").read_text()]
+    parts = ["#define SHRIMP_ENV_SORTED   // World carries sorted obstacle lists + min distances (rrtc_main.hpp)",
+             cpu_robot_header, (CPU / "kdtree.hpp").read_text(), (CPU / "rrtc.hpp").read_text()]
     if with_main:
         parts.append((CPU / "rrtc_main.hpp").read_text())
     return "\n".join(parts)
 
 
 def build_rrtc_source(robot_header: str, with_main: bool = True) -> str:
-    parts = [robot_header, (CUDA / "rrtc.cuh").read_text()]
+    parts = ["#define SHRIMP_ENV_SORTED   // World carries sorted obstacle lists + min distances (rrtc_main.cuh)",
+             robot_header, (CUDA / "rrtc.cuh").read_text()]
     if with_main:
         parts.append((CUDA / "rrtc_main.cuh").read_text())
     return "\n".join(parts)

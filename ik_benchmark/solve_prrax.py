@@ -138,7 +138,7 @@ def main() -> None:
     print(f"prrax {args.chain}: {P} problems, {dof} DOF, batches of {args.chunk}, batch {batch_ms:.1f} ms "
           f"({batch_ms / P * 1e3:.1f} us/problem), alone median {np.median(lat):.2f} ms wall / "
           f"{np.nanmedian(kern):.2f} ms kernel (first {len(lat)})")
-    print(f"{'family':<34}{'n':>5}{'solved':>8}{'lat ms':>9}{'cost med':>10}")
+    print(f"{'family':<34}{'n':>5}{'solved':>8}{'lat ms':>9}{'kern ms':>9}{'cost med':>10}")
     for ci, name in enumerate(names):
         m = cat == ci
         if not m.any():
@@ -146,6 +146,7 @@ def main() -> None:
         in_fam = m[lat_idx]
         print(f"{name:<34}{m.sum():>5}{solved[m].mean() * 100:>7.1f}%"
               f"{(np.median(lat[in_fam]) if in_fam.any() else float('nan')):>9.2f}"
+              f"{(np.nanmedian(kern[in_fam]) if in_fam.any() and not np.isnan(kern[in_fam]).all() else float('nan')):>9.2f}"
               f"{(np.nanmedian(cost[m]) if solved[m].any() else float('nan')):>10.2f}")
     print(f"{'all':<34}{P:>5}{solved.mean() * 100:>7.1f}%")
 

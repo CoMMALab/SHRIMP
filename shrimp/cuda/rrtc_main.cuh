@@ -5,6 +5,7 @@
 // set, one problem per launch); out_stat: int32 (solved, iters) per problem; out_len: int32 path length
 // (-1 = too long).
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -22,6 +23,21 @@ template <class T> static void writef(const char* fn, const std::vector<T>& v)
     FILE* f = fopen(fn, "wb");
     fwrite(v.data(), sizeof(T), v.size(), f);
     fclose(f);
+}
+
+// Sort one problem's K-float obstacles (first n of the padded list) by a lower bound on their distance from the
+// origin, nearest first (VAMP's Environment::sort); dmin gets that bound per obstacle (env_hit's early exit).
+template <int K, class Dist>
+static void sort_env(float* arr, int n, Dist dist, float* dmin)
+{
+    std::vector<std::pair<float, int>> key(n);
+    for (int i = 0; i < n; ++i) key[i] = {dist(arr + K * i) - 1e-5f, i};     // 1e-5: rounding safety
+    std::sort(key.begin(), key.end());
+    std::vector<float> tmp(arr, arr + (size_t)n * K);
+    for (int i = 0; i < n; ++i) {
+        std::copy_n(tmp.data() + (size_t)K * key[i].second, K, arr + (size_t)K * i);
+        dmin[i] = key[i].first;
+    }
 }
 
 int main(int argc, char** argv)
@@ -46,13 +62,38 @@ int main(int argc, char** argv)
     std::vector<int> env_n(3 * (size_t)P);
     if (!readf(fs, starts) || !readf(fg, goals) || !readf(fe, env) || !readf(fn, env_n)) return 1;
 
-    float *ds, *dg, *denv, *dnodes, *dpath;
+    const size_t dsz = (size_t)prm.MS + prm.MB + prm.MC;
+    std::vector<float> dmin((size_t)P * dsz, 0.f);
+    for (int p = 0; p < P; ++p) {
+        float* sph = env.data() + (size_t)p * esz;
+        float* box = sph + (size_t)prm.MS * 4;
+        float* cap = box + (size_t)prm.MB * 15;
+        float* dm = dmin.data() + (size_t)p * dsz;
+        sort_env<4>(sph, env_n[3 * p], [](const float* s) { return std::sqrt(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]) - s[3]; }, dm);
+        sort_env<15>(box, env_n[3 * p + 1], [](const float* b) {      // distance origin -> box
+            const float lx = -(b[0] * b[3] + b[1] * b[6] + b[2] * b[9]);          // R^T (0 - c), R row-major
+            const float ly = -(b[0] * b[4] + b[1] * b[7] + b[2] * b[10]);
+            const float lz = -(b[0] * b[5] + b[1] * b[8] + b[2] * b[11]);
+            const float ox = std::max(std::fabs(lx) - b[12], 0.f), oy = std::max(std::fabs(ly) - b[13], 0.f),
+                        oz = std::max(std::fabs(lz) - b[14], 0.f);
+            return std::sqrt(ox * ox + oy * oy + oz * oz); }, dm + prm.MS);
+        sort_env<7>(cap, env_n[3 * p + 2], [](const float* c) {       // distance origin -> segment, minus r
+            const float sx = c[3] - c[0], sy = c[4] - c[1], sz = c[5] - c[2];
+            const float len2 = std::max(sx * sx + sy * sy + sz * sz, 1e-12f);
+            const float s = std::min(std::max(-(c[0] * sx + c[1] * sy + c[2] * sz) / len2, 0.f), 1.f);
+            const float dx = c[0] + s * sx, dy = c[1] + s * sy, dz = c[2] + s * sz;
+            return std::sqrt(dx * dx + dy * dy + dz * dz) - c[6]; }, dm + prm.MS + prm.MB);
+    }
+
+    float *ds, *dg, *denv, *ddmin, *dnodes, *dpath;
     int *denvn, *dpar, *drdy, *dlen;
     PState* dst;
     cudaMalloc(&ds, starts.size() * 4);
     cudaMalloc(&dg, goals.size() * 4);
     cudaMalloc(&denv, env.size() * 4);
     cudaMalloc(&denvn, env_n.size() * 4);
+    cudaMalloc(&ddmin, dmin.size() * 4);
+    cudaMemcpy(ddmin, dmin.data(), dmin.size() * 4, cudaMemcpyHostToDevice);
     cudaMalloc(&dnodes, (size_t)P * 2 * ms * N * 4);
     cudaMalloc(&dpar, (size_t)P * 2 * ms * 4);
     cudaMalloc(&drdy, (size_t)P * 2 * ms * 4);
@@ -72,7 +113,7 @@ int main(int argc, char** argv)
         k_init<<<(nP + 63) / 64, 64>>>(ds + (size_t)p0 * N, dg + (size_t)p0 * N, dnodes + (size_t)p0 * 2 * ms * N,
                                        dpar + (size_t)p0 * 2 * ms, drdy + (size_t)p0 * 2 * ms, dst + p0, dlen + p0,
                                        prm, nP);
-        k_rrtc<<<nP * prm.B, NT>>>(denv + (size_t)p0 * esz, denvn + 3 * (size_t)p0, dnodes + (size_t)p0 * 2 * ms * N,
+        k_rrtc<<<nP * prm.B, NT>>>(denv + (size_t)p0 * esz, ddmin + (size_t)p0 * dsz, denvn + 3 * (size_t)p0, dnodes + (size_t)p0 * 2 * ms * N,
                                    dpar + (size_t)p0 * 2 * ms, drdy + (size_t)p0 * 2 * ms, dst + p0,
                                    dpath + (size_t)p0 * MAXP * N, dlen + p0, prm);
     };

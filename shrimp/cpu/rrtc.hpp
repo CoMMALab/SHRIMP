@@ -26,6 +26,7 @@ struct Params {
     unsigned seed;
     float epsilon;          // nearest-neighbour approximation: neighbour within (1 + epsilon) of the true nearest
     float weights[N];       // per-joint weights of the nearest-neighbour metric (steering stays plain L2)
+    int brute;              // 1 = linear-scan nearest instead of the kd-tree (correctness check)
 };
 struct Result { int solved, iters, len; };       // solved: 1 yes, 0 out of iterations, -1 a tree filled up
 
@@ -42,6 +43,8 @@ struct Tree {
     std::vector<float> q;
     std::vector<int> par;
     KDTree<N> kd;
+    bool brute = false;
+    float w[N];
     int size() const { return (int)par.size(); }
     const float* at(int i) const { return q.data() + (size_t)i * N; }
     void init(const Params& prm)
@@ -51,6 +54,8 @@ struct Tree {
         kd.reserve(prm.max_samples);
         kd.set_epsilon(prm.epsilon);
         kd.set_weights(prm.weights);
+        brute = prm.brute != 0;
+        std::copy(prm.weights, prm.weights + N, w);
     }
     void add(const float* c, int parent)
     {
@@ -61,12 +66,24 @@ struct Tree {
 };
 
 // Nearest node under the tree's (weighted, approximate) metric.
-static int nearest(const Tree& t, const float* c) { float d2; return t.kd.nearest(c, d2); }
+static int nearest(const Tree& t, const float* c)
+{
+    if (!t.brute) { float d2; return t.kd.nearest(c, d2); }
+    int best = 0;
+    float bd = INFINITY;
+    for (int i = 0; i < t.size(); ++i) {
+        const float* p = t.at(i);
+        float d = 0.f;
+        for (int k = 0; k < N; ++k) { const float x = (p[k] - c[k]) * t.w[k]; d += x * x; }
+        if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+}
 
 static thread_local long g_fk = 0;   // fkcc calls made by edge_ok on this thread (instrumentation)
 
 // Is the straight edge from -> from + delta free? Waypoints j = 1..n at from + (j / n) delta, j = n first,
-// then the odd multiples of the largest power of two below n, halving down to 1.
+// then the odd multiples of the largest power of two below n, halving down to 1 (each level descending).
 static bool edge_ok(const float* from, const float* delta, const World& w)
 {
     float len2 = 0.f;
@@ -82,8 +99,8 @@ static bool edge_ok(const float* from, const float* delta, const World& w)
     if (!free_at(n)) return false;
     int s = 1;
     while (s < n) s <<= 1;
-    for (s >>= 1; s >= 1; s >>= 1)
-        for (int j = s; j < n; j += 2 * s)
+    for (s >>= 1; s >= 1; s >>= 1)                           // each level from the end toward the start
+        for (int j = s + (n - 1 - s) / (2 * s) * 2 * s; j >= s; j -= 2 * s)
             if (!free_at(j)) return false;
     return true;
 }
