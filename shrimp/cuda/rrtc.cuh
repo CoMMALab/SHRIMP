@@ -150,7 +150,8 @@ k_rrtc(const float* env, const float* dmin, const int* env_n, float* nodes, int*
     w.sph = env + (size_t)p * (prm.MS * 4 + prm.MB * 15 + prm.MC * 7);
     w.box = w.sph + prm.MS * 4;
     w.cap = w.box + prm.MB * 15;
-    w.smin = dmin; w.bmin = dmin + prm.MS; w.cmin = dmin + prm.MS + prm.MB;
+    const float* dm = dmin + (size_t)p * (prm.MS + prm.MB + prm.MC);
+    w.smin = dm; w.bmin = dm + prm.MS; w.cmin = dm + prm.MS + prm.MB;
     w.ns = env_n[3 * p]; w.nb = env_n[3 * p + 1]; w.nc = env_n[3 * p + 2];
     const unsigned rs = prm.seed ^ ((unsigned)(prm.p0 + p) * 0x9E3779B1u) ^ ((unsigned)bl * 0x85EBCA6Bu);
 

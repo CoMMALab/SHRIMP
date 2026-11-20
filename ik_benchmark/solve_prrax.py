@@ -55,6 +55,9 @@ def main() -> None:
     ap.add_argument("--balance-mode", type=int, default=2)
     ap.add_argument("--tree-ratio", type=float, default=1.0)
     ap.add_argument("--no-dynamic-domain", action="store_true")
+    ap.add_argument("--collision-checker", default="binary",
+                    choices=["binary", "binary_coarse", "binary_coarse_coop"],
+                    help="binary_coarse = bounding-sphere pre-pass before the fine spheres")
     args = ap.parse_args()
     robot = ROBOT[args.chain]
 
@@ -97,7 +100,7 @@ def main() -> None:
 
     kw = dict(max_iterations=args.max_iterations, step_size=STEP[robot], num_new_samples=args.num_new_samples,
               granularity=args.granularity, max_nodes=args.max_nodes, balance_mode=args.balance_mode,
-              tree_ratio=args.tree_ratio, dynamic_domain=not args.no_dynamic_domain, min_vals=lo, max_vals=hi)
+              tree_ratio=args.tree_ratio, collision_checker=args.collision_checker, dynamic_domain=not args.no_dynamic_domain, min_vals=lo, max_vals=hi)
 
     results, batch_ms = [None] * P, 0.0
     for c0 in range(0, P, args.chunk):
