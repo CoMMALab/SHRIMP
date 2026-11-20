@@ -1,4 +1,4 @@
-"""CRAB's CPU RRT-Connect (shrimp/cpu/rrtc.hpp, scalar) on the MBM problems (crab env). Run:
+"""CRAB's CPU RRT-Connect (src/cpu/rrtc.hpp, scalar) on the MBM problems (crab env). Run:
     python ik_benchmark/crab_rrtc_cpu.py --chain mbm_baxter --all [--threads 8] [--limit N]
     python ik_benchmark/crab_rrtc_cpu.py --chain mbm_baxter --from ik_benchmark/results/mbm_baxter_crab_rrtc.npz
 

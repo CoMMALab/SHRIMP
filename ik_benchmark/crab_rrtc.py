@@ -2,7 +2,7 @@
     python ik_benchmark/crab_rrtc.py [--chain mbm|mbm_baxter] [--blocks 64] [--max-iters 3000]
         [--max-samples 8192] [--range 0.5] [--limit N] [--validate 50]
 
-One CUDA kernel (shrimp/cuda/rrtc.cuh, on CRAB's crab_codegen/robot_header.py) plans every problem of ik_benchmark/targets/<robot>_mbm*.npz:
+One CUDA kernel (src/cuda/rrtc.cuh, on CRAB's crab_codegen/robot_header.py) plans every problem of ik_benchmark/targets/<robot>_mbm*.npz:
 start = the problem's start config, goal = its goal config (q_star), world = its obstacles. Reports, per
 family: success, median latency of one problem alone on the GPU, batched time per problem, path cost; and
 re-checks `--validate` solved paths in float64 (limits, endpoints, self + obstacle collision along every
@@ -25,7 +25,7 @@ def build(chain: str, lo, hi, checker, cpu: bool = False, interleave: bool = Fal
     import crab_model  # noqa: F401
     from crab_codegen.robot_header import build_cpu_robot_header, build_robot_header
     from crab_io.urdf import load_urdf, urdf_to_robot
-    from shrimp.rrtc import build_cpu_rrtc_source, build_rrtc_source
+    from src.rrtc import build_cpu_rrtc_source, build_rrtc_source
 
     c = problem.CHAINS[chain]
     urdf = load_urdf(str(problem.common.ROBOTS[c.robot].urdf_path))

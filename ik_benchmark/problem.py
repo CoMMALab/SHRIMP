@@ -19,8 +19,8 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parents[1]            # SHRIMP root (shrimp/, crab/, ik_benchmark/, external/)
-sys.path.insert(0, str(REPO))                          # shrimp
+REPO = Path(__file__).resolve().parents[1]            # SHRIMP root (src/, crab/, ik_benchmark/, external/)
+sys.path.insert(0, str(REPO))                          # src (SHRIMP's planners)
 sys.path.insert(0, str(REPO / "crab"))                 # crab_codegen, crab_kinematics, ...
 sys.path.insert(0, str(REPO / "crab" / "baseline_comparisons"))
 

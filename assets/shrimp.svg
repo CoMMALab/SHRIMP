@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="160" height="160" role="img" aria-label="shrimp">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- antennae -->
+    <path d="M52 62 C34 40 20 34 8 36" stroke="#e8735a" stroke-width="3"/>
+    <path d="M56 70 C38 58 26 58 14 66" stroke="#e8735a" stroke-width="3"/>
+    <!-- legs -->
+    <path d="M70 128 l-6 16 M88 136 l-4 17 M106 138 l-2 17 M124 134 l2 16" stroke="#e8735a" stroke-width="4"/>
+  </g>
+  <!-- tail fan -->
+  <path d="M150 152 L176 176 L158 182 L146 168 L132 184 L128 160 Z" fill="#f08a6b"/>
+  <!-- body: curved, segmented -->
+  <path d="M46 78 C46 44 84 30 118 44 C152 58 166 96 154 132 C150 144 138 152 126 148
+           C114 144 114 130 118 118 C124 98 112 82 94 80 C80 78 70 94 62 98 C52 102 46 92 46 78 Z"
+        fill="#f4a182"/>
+  <g stroke="#d9573c" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M96 40 C98 54 96 66 90 76"/>
+    <path d="M116 46 C120 62 118 76 112 86"/>
+    <path d="M136 56 C140 74 138 90 130 102"/>
+    <path d="M148 74 C150 92 146 108 138 120"/>
+  </g>
+  <!-- eye -->
+  <circle cx="64" cy="68" r="7" fill="#2b2b2b"/>
+  <circle cx="66" cy="66" r="2.2" fill="#fff"/>
+</svg>

@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
-// (kdtree.hpp is concatenated before this file by shrimp/rrtc.py)
+// (kdtree.hpp is concatenated before this file by src/rrtc.py)
 
 constexpr float RES = 1.f / 32.f;    // edge resolution (rad, joint-space L2)
 constexpr int MAXP = 512;            // max path nodes written per problem
