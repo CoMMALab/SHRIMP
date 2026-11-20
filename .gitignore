@@ -6,3 +6,4 @@ __pycache__
 external/
 crab/baseline_comparisons/caspar_gen/
 ik_benchmark/build/
+ik_benchmark/results/*.npz
