@@ -16,7 +16,8 @@ from dataclasses import dataclass
 import numpy as np
 
 HERE = pathlib.Path(__file__).resolve().parent
-REPO = HERE.parent
+REPO = HERE.parent          # crab/
+ROOT = REPO.parent          # SHRIMP root (holds external/)
 RESULTS = HERE / "results"
 
 BATCH_SIZES = [1, 16, 256, 4096, 65536, 262144, 1048576]

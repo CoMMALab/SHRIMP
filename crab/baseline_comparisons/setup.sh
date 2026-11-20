@@ -4,6 +4,7 @@
 # Installs/builds each project from the mounted source. Re-runnable.
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$REPO/.." && pwd)"      # SHRIMP root: external/ lives here, CRAB is crab/
 cd "$REPO"
 
 echo "== CRAB: build the JIT library"
@@ -11,13 +12,13 @@ cmake -S crusty_compilations -B crusty_compilations/build
 cmake --build crusty_compilations/build --target crusty_jit_capi
 
 echo "== cuRobo"
-/opt/venvs/curobo/bin/pip install -e "external/curobo[cu13]"
+/opt/venvs/curobo/bin/pip install -e "$ROOT/external/curobo[cu13]"
 
 echo "== pyroffi (needs its GRiM submodule for CUDA FK)"
-if [ -z "$(ls -A external/pyroffi/external/GRiM 2>/dev/null)" ]; then
-  git -C external/pyroffi submodule update --init --recursive
+if [ -z "$(ls -A "$ROOT/external/pyroffi/external/GRiM" 2>/dev/null)" ]; then
+  git -C "$ROOT/external/pyroffi" submodule update --init --recursive
 fi
-/opt/venvs/pyroffi/bin/pip install -e "external/pyroffi[cuda]"
+/opt/venvs/pyroffi/bin/pip install -e "$ROOT/external/pyroffi[cuda]"
 
 echo "== Caspar: build SymForce (with caspar) from the clone in required_dirs/symforce"
 # Caspar is part of CRAB (crusty_cuda), so it goes in the crab env, replacing the PyPI symforce
@@ -38,7 +39,7 @@ micromamba run -n cricket bash -c '
   cmake -GNinja -Bbuild .
   cmake --build build
   pip install --no-build-isolation -e .
-' _ "$REPO"
+' _ "$ROOT"
 
 echo "Done. Activate an env with:"
 echo "  source /opt/venvs/crab/bin/activate      # CRAB (CPU JIT + GPU/Caspar)"

@@ -1,8 +1,8 @@
 /.cache/
-/crusty_compilations/build/
+/crab/crusty_compilations/build/
 __pycache__
 *.py[cod]
 *.so
 external/
-baseline_comparisons/caspar_gen/
+crab/baseline_comparisons/caspar_gen/
 ik_benchmark/build/

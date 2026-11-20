@@ -17,9 +17,9 @@ import numpy as np
 
 import common
 
-GRID = common.REPO / "external/pyroffi/external/GRiM/external/GRiD"
+GRID = common.ROOT / "external/pyroffi/external/GRiM/external/GRiD"
 os.environ.setdefault("CROCKET_GRID_PATH", str(GRID))
-sys.path.insert(0, str(common.REPO / "external/crocket/python"))
+sys.path.insert(0, str(common.ROOT / "external/crocket/python"))
 
 import crocket
 from crocket import harness

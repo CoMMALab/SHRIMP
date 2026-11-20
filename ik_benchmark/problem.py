@@ -19,9 +19,10 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO))
-sys.path.insert(0, str(REPO / "baseline_comparisons"))
+REPO = Path(__file__).resolve().parents[1]            # SHRIMP root (shrimp/, crab/, ik_benchmark/, external/)
+sys.path.insert(0, str(REPO))                          # shrimp
+sys.path.insert(0, str(REPO / "crab"))                 # crab_codegen, crab_kinematics, ...
+sys.path.insert(0, str(REPO / "crab" / "baseline_comparisons"))
 
 import common  # noqa: E402  (baseline_comparisons/common.py: RobotSpec for rby1)
 
