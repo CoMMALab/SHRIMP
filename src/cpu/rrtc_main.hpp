@@ -10,40 +10,11 @@
 #include <cstdlib>
 #include <thread>
 
-template <class T> static bool readf(const char* fn, std::vector<T>& v)
-{
-    FILE* f = fopen(fn, "rb");
-    if (!f) return false;
-    const size_t n = fread(v.data(), sizeof(T), v.size(), f);
-    fclose(f);
-    return n == v.size();
-}
-template <class T> static void writef(const char* fn, const std::vector<T>& v)
-{
-    FILE* f = fopen(fn, "wb");
-    fwrite(v.data(), sizeof(T), v.size(), f);
-    fclose(f);
-}
+// (readf / writef / sort_env / SortedEnv: host_util.hpp, concatenated before this file by src/rrtc.py)
 
 #ifdef SHRIMP_PROF
 static std::atomic<unsigned long long> g_tot[3];     // summed thread cycle counters (see fkcc)
 #endif
-
-// Obstacles (K floats each) sorted by a lower bound on their distance from the origin, nearest first, as VAMP's
-// Environment::sort; env_hit stops at the first obstacle farther than |sphere centre| + r.
-template <int K, class Dist>
-static void sort_env(const float* src, int n, Dist dist, std::vector<float>& out, std::vector<float>& dmin)
-{
-    std::vector<std::pair<float, int>> key(n);
-    for (int i = 0; i < n; ++i) key[i] = {dist(src + K * i) - 1e-5f, i};     // 1e-5: rounding safety
-    std::sort(key.begin(), key.end());
-    out.resize((size_t)n * K);
-    dmin.resize(n);
-    for (int i = 0; i < n; ++i) {
-        std::copy_n(src + (size_t)K * key[i].second, K, out.begin() + (size_t)K * i);
-        dmin[i] = key[i].first;
-    }
-}
 
 int main(int argc, char** argv)
 {

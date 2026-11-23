@@ -1,9 +1,9 @@
-# Baseline comparison image: CRAB vs cuRobo vs pyroffi vs cricket.
-# Three isolated environments, since their CUDA/LLVM/torch/jax stacks conflict:
+# Baseline comparison image: CRAB vs cuRobo vs pyroffi vs crocket.
+# Isolated environments, since their CUDA/LLVM/torch/jax stacks conflict:
 #   /opt/venvs/crab     CRAB (system LLVM 18 + clang)
 #   /opt/venvs/curobo   cuRobo (PyTorch, CUDA 13)
 #   /opt/venvs/pyroffi  pyroffi (JAX, CUDA 13)
-#   micromamba env `cricket`  cricket (Pinocchio, CppAD, conda LLVM)
+#   /opt/venvs/crocket  crocket (pure Python + nvcc)
 #
 # Build from the repo root:  docker build -f baseline_comparisons/Dockerfile -t crab-baselines .
 # Source is NOT copied in; mount the repo wherever you like and run baseline_comparisons/setup.sh.
@@ -13,7 +13,7 @@ FROM ${CUDA_IMAGE}
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential cmake ninja-build git curl ca-certificates bzip2 \
+        build-essential cmake ninja-build git curl ca-certificates \
         clang-18 llvm-18-dev libclang-18-dev libclang-cpp18-dev libeigen3-dev \
         python3 python3-pip python3-venv python3-dev libgmp-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -44,14 +44,6 @@ RUN python3 -m venv /opt/venvs/pyroffi && \
 #     GRiD's URDFParser; it compiles with the base image's nvcc) ---
 RUN python3 -m venv /opt/venvs/crocket && \
     /opt/venvs/crocket/bin/pip install --no-cache-dir numpy sympy beautifulsoup4 lxml pytest
-
-# --- cricket (conda-forge deps from external/cricket/environment.yaml) ---
-RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xj -C /usr/local bin/micromamba
-ENV MAMBA_ROOT_PREFIX=/opt/micromamba
-RUN micromamba create -y -n cricket -c conda-forge \
-        python=3.12 pinocchio cppad eigen cgal inja nlohmann_json cmake cxx-compiler \
-        llvm llvmdev clangdev ninja pip scikit-build-core nanobind fmt pkg-config patch git && \
-    micromamba clean -afy
 
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 RUN git config --global --add safe.directory '*'

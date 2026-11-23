@@ -22,7 +22,19 @@ def build_cpu_rrtc_source(cpu_robot_header: str, with_main: bool = True) -> str:
     parts = ["#define SHRIMP_ENV_SORTED   // World carries sorted obstacle lists + min distances (rrtc_main.hpp)",
              cpu_robot_header, (CPU / "kdtree.hpp").read_text(), (CPU / "rrtc.hpp").read_text()]
     if with_main:
-        parts.append((CPU / "rrtc_main.hpp").read_text())
+        parts += [(CPU / "host_util.hpp").read_text(), (CPU / "rrtc_main.hpp").read_text()]
+    return "\n".join(parts)
+
+
+def build_cpu_crrtc_source(cpu_robot_header: str, tsr_header: str, with_main: bool = True) -> str:
+    """CPU constrained RRT-Connect (cpu/crrtc.hpp): the unconstrained planner's pieces (rrtc.hpp) plus CRAB's TSR
+    constraint header (crab_codegen.constraint_header.build_tsr_header(..., gpu=False)), appended after the robot
+    header. Same compile line as build_cpu_rrtc_source."""
+    parts = ["#define SHRIMP_ENV_SORTED   // World carries sorted obstacle lists + min distances (host_util.hpp)",
+             cpu_robot_header, tsr_header, (CPU / "kdtree.hpp").read_text(), (CPU / "rrtc.hpp").read_text(),
+             (CPU / "crrtc.hpp").read_text()]
+    if with_main:
+        parts += [(CPU / "host_util.hpp").read_text(), (CPU / "crrtc_main.hpp").read_text()]
     return "\n".join(parts)
 
 
