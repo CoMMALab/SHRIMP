@@ -38,6 +38,17 @@ def build_cpu_crrtc_source(cpu_robot_header: str, tsr_header: str, with_main: bo
     return "\n".join(parts)
 
 
+def build_crrtc_source(robot_header: str, tsr_header: str, with_main: bool = True) -> str:
+    """GPU constrained RRT-Connect (cuda/crrtc.cuh) on CRAB's GPU robot header and TSR header
+    (crab_codegen.constraint_header.build_tsr_header(..., gpu=True)), plus the unconstrained planner's pieces
+    (rrtc.cuh). Same compile line as build_rrtc_source."""
+    parts = ["#define SHRIMP_ENV_SORTED   // World carries sorted obstacle lists + min distances (host_util.hpp)",
+             robot_header, tsr_header, (CUDA / "rrtc.cuh").read_text(), (CUDA / "crrtc.cuh").read_text()]
+    if with_main:
+        parts += [(CPU / "host_util.hpp").read_text(), (CUDA / "crrtc_main.cuh").read_text()]
+    return "\n".join(parts)
+
+
 def build_rrtc_source(robot_header: str, with_main: bool = True) -> str:
     parts = ["#define SHRIMP_ENV_SORTED   // World carries sorted obstacle lists + min distances (rrtc_main.cuh)",
              robot_header, (CUDA / "rrtc.cuh").read_text()]

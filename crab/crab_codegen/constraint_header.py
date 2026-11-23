@@ -155,7 +155,7 @@ TSR_FN float tsr_step(float* q, const float* e, const float* J, const ProjParams
 TSR_FN bool tsr_project(float* q, const Tsr& t, const ProjParams& p)
 {
     float q0[N], e[NR], J[NR * N];
-    for (int k = 0; k < N; ++k) q0[k] = q[k];
+    for (int k = 0; k < N; ++k) q0[k] = q[k] = fminf(fmaxf(q[k], LO[k]), HI[k]);     // a candidate may start outside
     for (int it = 0;; ++it) {
         tsr_err(q, t, e);                                  // cheap: the Jacobian only when a step is needed
         if (tsr_satisfied(e, t)) return true;
